@@ -117,8 +117,7 @@ struct OverlayCard: View {
                         .lineLimit(3)
                 }
                 HStack {
-                    Text(article.sourceName)
-                        .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
+                    SourceLink(article: article).font(Theme.Text.meta)
                     Spacer()
                     if showRead {
                         Button { store.reading = article } label: {

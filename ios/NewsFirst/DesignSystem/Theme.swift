@@ -17,27 +17,20 @@ enum Theme {
         #endif
     }
 
-    // POC: dark = deep violet (#120D20 canvas, #1C1630 panels, #2E2649 lines);
-    //      light = editorial ivory (#F3F2EF, white cards, #E2E1DB lines).
-    static let canvas = dyn((0.953, 0.949, 0.937), (0.071, 0.051, 0.125))
-    static let panel  = dyn((1.0, 1.0, 1.0),       (0.110, 0.086, 0.188))
-    static let panelBorder = dyn((0.886, 0.882, 0.859), (0.180, 0.149, 0.286))
-    // Kinetic gradient endpoints
-    static let accentPink = Color(red: 1.0, green: 0.302, blue: 0.427)      // #FF4D6D
-    static let accentPurple = Color(red: 0.765, green: 0.302, blue: 1.0)    // #C34DFF
-    static let accentBlue = Color(red: 0.369, green: 0.659, blue: 1.0)      // #5EA8FF
-    static let accent = accentPurple
-    static let link = dyn((0.35, 0.36, 1.0), (0.616, 0.706, 1.0))           // #9DB4FF in dark
-    static var brandGradient: LinearGradient {
-        LinearGradient(colors: [accentPink, accentPurple, accentBlue], startPoint: .leading, endPoint: .trailing)
-    }
+    // Midnight Glass colours (Tom's approved scheme); light = clean editorial ivory.
+    // Kinetic Editorial contributes TYPE, SPACING and MOTION only — not colour.
+    static let canvas = dyn((0.953, 0.949, 0.937), (0.047, 0.055, 0.078))   // dark #0C0E14
+    static let panel  = dyn((1.0, 1.0, 1.0),       (0.118, 0.133, 0.184))   // dark #1E2230
+    static let panelBorder = dyn((0.886, 0.882, 0.859), (0.255, 0.275, 0.333))
+    static let accent = Color(red: 0.30, green: 0.62, blue: 0.92)           // glassy blue
+    static let link = dyn((0.10, 0.42, 0.85), (0.30, 0.62, 0.92))
     static var selectionGradient: LinearGradient {
-        LinearGradient(colors: [accentPink, Color(red: 0.541, green: 0.169, blue: 0.886)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        LinearGradient(colors: [accent, Color(red: 0.18, green: 0.42, blue: 0.78)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
-    static let tierHigh = Color(red: 1.0, green: 0.478, blue: 0.576)      // #FF7A93
-    static let tierMedium = Color(red: 0.616, green: 0.706, blue: 1.0)    // #9DB4FF
-    static let tierLow = dyn((0.55, 0.55, 0.58), (0.72, 0.71, 0.78))
+    static let tierHigh = Color(red: 1.0, green: 0.27, blue: 0.23)
+    static let tierMedium = Color(red: 1.0, green: 0.58, blue: 0.16)
+    static let tierLow = Color(red: 0.24, green: 0.78, blue: 0.45)
 
     static func tierColor(_ tier: Article.Tier) -> Color {
         switch tier { case .high: tierHigh; case .medium: tierMedium; case .low: tierLow }
@@ -148,15 +141,33 @@ struct SourceLine: View {
     let article: Article
     var body: some View {
         HStack(spacing: 6) {
-            Text(article.sourceName)
-                .foregroundStyle(Theme.link)
-                .underline()
-                .lineLimit(1)
+            SourceLink(article: article)
             Spacer(minLength: 8)
             Text(article.publishedAt, format: .relative(presentation: .named))
                 .foregroundStyle(.secondary)
         }
         .font(Theme.Text.meta)
+    }
+}
+
+/// Tapping a source name jumps to that source's own feed (Sources browse mode).
+struct SourceLink: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+    var body: some View {
+        Button {
+            withAnimation(Theme.Motion.feed) {
+                store.browse = .sources
+                store.selectedSource = article.sourceName
+            }
+            Task { await store.loadSources(); await store.backfillIfSparse() }
+        } label: {
+            Text(article.sourceName)
+                .foregroundStyle(Theme.link)
+                .underline()
+                .lineLimit(1)
+        }
+        .buttonStyle(.plain)
     }
 }
 

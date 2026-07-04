@@ -62,11 +62,6 @@ struct RootView: View {
             }
             .buttonStyle(PressableStyle())
             Spacer()
-            Text("NewsFirst")
-                .font(.system(size: 16, weight: .heavy))
-                .foregroundStyle(Theme.brandGradient)
-                .fixedSize()
-                .lineLimit(1)
             Spacer(minLength: 6)
             Picker("View", selection: Binding(
                 get: { store.mode },
@@ -229,7 +224,7 @@ struct TopicBar: View {
             .background {
                 if selected {
                     Capsule().fill(Theme.selectionGradient)
-                        .shadow(color: Theme.accentPink.opacity(0.4), radius: 8, y: 2)
+                        .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
                         .matchedGeometryEffect(id: "chip-sel", in: chipSelection)   // glides between chips
                 }
             }
@@ -279,7 +274,7 @@ struct TopicBar: View {
                 .background {
                     if selected {
                         Capsule().fill(Theme.selectionGradient)
-                            .shadow(color: Theme.accentPink.opacity(0.4), radius: 8, y: 2)
+                            .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
                             .matchedGeometryEffect(id: "chip-sel", in: chipSelection)
                     }
                 }
