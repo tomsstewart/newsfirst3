@@ -446,11 +446,11 @@ struct SplashView: View {
                 Theme.canvas.ignoresSafeArea()
                 HStack(spacing: 0) {
                     Text("News")
-                        .offset(y: settled ? 0 : -geo.size.height / 2)
-                        .scaleEffect(settled ? 1 : 0.01)
+                        .offset(y: settled ? 0 : -90)
+                        .opacity(settled ? 1 : 0)
                     Text("First")
-                        .offset(y: settled ? 0 : geo.size.height / 2)
-                        .scaleEffect(settled ? 1 : 0.01)
+                        .offset(y: settled ? 0 : 90)
+                        .opacity(settled ? 1 : 0)
                 }
                 .font(.system(size: 48, weight: .black))
                 .kerning(-1)
@@ -460,7 +460,7 @@ struct SplashView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            withAnimation(.spring(response: 0.57, dampingFraction: 0.7)) { settled = true }
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.92)) { settled = true }
         }
     }
 }
