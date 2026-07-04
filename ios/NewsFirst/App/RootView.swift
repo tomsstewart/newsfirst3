@@ -63,9 +63,11 @@ struct RootView: View {
             .buttonStyle(PressableStyle())
             Spacer()
             Text("NewsFirst")
-                .font(.system(size: 21, weight: .heavy))
+                .font(.system(size: 16, weight: .heavy))
                 .foregroundStyle(Theme.brandGradient)
-            Spacer()
+                .fixedSize()
+                .lineLimit(1)
+            Spacer(minLength: 6)
             Picker("View", selection: Binding(
                 get: { store.mode },
                 set: { m in withAnimation(Theme.Motion.feed) { store.mode = m } }
@@ -74,7 +76,7 @@ struct RootView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 230)
+            .frame(maxWidth: 185)
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape.fill")
                     .foregroundStyle(.secondary)
