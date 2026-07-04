@@ -124,6 +124,7 @@ struct OverlayCard: View {
     let article: Article
     var height: CGFloat = 540
     var showRead = true
+    var showTier = true   // immersive bands already say the tier — no per-card tag there
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -136,7 +137,7 @@ struct OverlayCard: View {
                            startPoint: .init(x: 0.5, y: 0.30), endPoint: .bottom)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    TierBadge(tier: article.tier, loud: true)
+                    if showTier { TierBadge(tier: article.tier, loud: true) }
                     ScoreDebugBadge(article: article)
                 }
                 Text(article.title)
@@ -285,7 +286,7 @@ struct ImmersiveCard: View {
     let article: Article
     var hero = false
     var body: some View {
-        OverlayCard(article: article, height: hero ? 480 : 330, showRead: hero)
+        OverlayCard(article: article, height: hero ? 480 : 330, showRead: hero, showTier: false)
     }
 }
 
