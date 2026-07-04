@@ -35,7 +35,6 @@ struct ListFeedView: View {
     @Environment(FeedStore.self) private var store
     @State private var expandedID: UUID?
     @State private var lowHidden = false
-    @Namespace private var morph
 
     private var bands: [(tier: Article.Tier, items: [Article])] {
         let v = store.visible
@@ -83,39 +82,104 @@ struct ListFeedView: View {
         .buttonStyle(PressableStyle())
     }
 
-    /// One article: row ⇄ expanded card, morphing via matched image/title/container.
-    @ViewBuilder private func articleCell(_ article: Article) -> some View {
-        if expandedID == article.id {
-            ExpandedListCard(article: article, ns: morph) {
-                withAnimation(Theme.Motion.card) { expandedID = nil }
+    /// One article cell: collapsed row ⇄ expanded card as a pure vertical unfold.
+    private func articleCell(_ article: Article) -> some View {
+        ArticleExpandableCell(article: article, expanded: expandedID == article.id) {
+            withAnimation(Theme.Motion.card) {
+                expandedID = expandedID == article.id ? nil : article.id
             }
-        } else {
-            ListRow(article: article, ns: morph)
-                .onTapGesture {
-                    withAnimation(Theme.Motion.card) { expandedID = article.id }
-                }
         }
+    }
+}
+
+/// Accordion cell: the hero image unfolds down from the top edge; text reflows beneath.
+/// Same identity collapsed/expanded, so the animation is strictly up/down.
+struct ArticleExpandableCell: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+    let expanded: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if expanded {
+                ArticleImage(article: article, width: 800)
+                    .frame(height: 200)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        TierBadge(tier: article.tier, loud: true)
+                        Text(article.publishedAt, format: .relative(presentation: .named))
+                            .font(Theme.Text.meta).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    Text(article.title)
+                        .font(Theme.Text.hero)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let excerpt = article.excerpt, !excerpt.isEmpty {
+                        Text(excerpt)
+                            .font(Theme.Text.excerpt)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                    }
+                    HStack {
+                        Text(article.sourceName)
+                            .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
+                        Spacer()
+                        Button { store.reading = article } label: {
+                            Text("Read article")
+                                .font(Theme.Text.rowTitle)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .glassChip(prominent: true)
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(14)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else {
+                ListRow(article: article)
+                    .transition(.opacity)
+            }
+        }
+        .background(Theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: expanded ? 18 : 14))
+        .overlay(RoundedRectangle(cornerRadius: expanded ? 18 : 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+        .shadow(color: .black.opacity(expanded ? 0.35 : 0), radius: expanded ? 14 : 0, y: expanded ? 6 : 0)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
     }
 }
 
 /// v2-style row: thumbnail left, 2-line title, 2-line excerpt, source link + date.
 struct ListRow: View {
     let article: Article
-    var ns: Namespace.ID?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            image
+            ArticleImage(article: article, width: 220)
+                .frame(width: 92, height: 92)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 4) {
-                title
+                Text(article.title)
+                    .font(Theme.Text.rowTitle)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
                 if let excerpt = article.excerpt, !excerpt.isEmpty {
                     Text(excerpt)
                         .font(Theme.Text.excerpt)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                Spacer(minLength: 2)
-                SourceLine(article: article)
+                SourceLine(article: article).padding(.top, 4)
             }
         }
         .padding(10)
@@ -125,78 +189,6 @@ struct ListRow: View {
         .contentShape(Rectangle())
     }
 
-    @ViewBuilder private var image: some View {
-        let img = ArticleImage(article: article, width: 220)
-            .frame(width: 92, height: 92)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-        if let ns { img.matchedGeometryEffect(id: "img\(article.id)", in: ns) } else { img }
-    }
-
-    @ViewBuilder private var title: some View {
-        let t = Text(article.title)
-            .font(Theme.Text.rowTitle)
-            .foregroundStyle(.primary)
-            .multilineTextAlignment(.leading)
-            .lineLimit(2)
-        if let ns { t.matchedGeometryEffect(id: "title\(article.id)", in: ns, properties: .position) } else { t }
-    }
-}
-
-/// Expanded in place: hero image + full info. Tap anywhere = shrink back; Read = in-app browser.
-struct ExpandedListCard: View {
-    @Environment(FeedStore.self) private var store
-    let article: Article
-    let ns: Namespace.ID
-    let collapse: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ArticleImage(article: article, width: 800)
-                .frame(height: 210)
-                .clipped()
-                .matchedGeometryEffect(id: "img\(article.id)", in: ns)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    TierBadge(tier: article.tier, loud: true)
-                    Text(article.publishedAt, format: .relative(presentation: .named))
-                        .font(Theme.Text.meta).foregroundStyle(.secondary)
-                    Spacer()
-                }
-                Text(article.title)
-                    .font(Theme.Text.hero)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .matchedGeometryEffect(id: "title\(article.id)", in: ns, properties: .position)
-                if let excerpt = article.excerpt, !excerpt.isEmpty {
-                    Text(excerpt)
-                        .font(Theme.Text.excerpt)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(4)
-                }
-                HStack {
-                    Text(article.sourceName)
-                        .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
-                    Spacer()
-                    Button { store.reading = article } label: {
-                        Text("Read article")
-                            .font(Theme.Text.rowTitle)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16).padding(.vertical, 8)
-                            .glassChip(prominent: true)
-                    }
-                    .buttonStyle(PressableStyle())
-                }
-                .padding(.top, 2)
-            }
-            .padding(14)
-        }
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.panelBorder, lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: collapse)
-    }
 }
 
 // MARK: - IMMERSIVE: rich card feed (hero + cards with excerpts)

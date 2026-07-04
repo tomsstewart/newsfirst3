@@ -65,6 +65,7 @@ struct RootView: View {
                 ForEach(ViewMode.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(maxWidth: 230)
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape.fill")

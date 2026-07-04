@@ -33,13 +33,13 @@ func preload(_ articles: [Article], limit: Int) async {
 }
 
 @MainActor
-func snap<V: View>(_ view: V, name: String, dark: Bool = true) {
+func snap<V: View>(_ view: V, name: String, dark: Bool = true, width: CGFloat = 393) {
     let renderer = ImageRenderer(content: view
-        .frame(width: 393, height: 852)
+        .frame(width: width, height: 852)
         .background(Theme.groupedBackground)
         .environment(\.colorScheme, dark ? .dark : .light))
     renderer.scale = 2
-    renderer.proposedSize = .init(width: 393, height: 852)
+    renderer.proposedSize = .init(width: width, height: 852)
     guard let cg = renderer.cgImage else { print("RENDER FAIL \(name)"); return }
     guard let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return }
     try? png.write(to: URL(fileURLWithPath: "demo/out/\(name).png"))
@@ -133,12 +133,9 @@ struct SnapListExpanded: View {
                 if articles.count > 3 {
                     ListRow(article: articles[0])
                     Divider().padding(.leading, 16)
-                    ZStack(alignment: .topTrailing) {
-                        ImmersiveCard(article: articles[1], hero: true)
-                        Image(systemName: "chevron.up").font(.footnote.bold()).foregroundStyle(.white)
-                            .padding(8).background(.black.opacity(0.45), in: Circle()).padding(10)
-                    }
-                    .padding(.vertical, 8).padding(.horizontal, 8)
+                    ArticleExpandableCell(article: articles[1], expanded: true) {}
+                        .environment(FeedStore())
+                        .padding(.vertical, 8)
                     ListRow(article: articles[2])
                 }
             }
@@ -227,6 +224,8 @@ if CommandLine.arguments.contains("--snapshot") {
             }
             snap(SnapList(articles: claude, title: "claude", custom: ["claude"]), name: "custom_claude")
             snap(SnapListExpanded(articles: world), name: "list_expanded")
+            snap(SnapListExpanded(articles: world), name: "list_expanded_narrow", width: 350)
+            snap(SnapImmersive(articles: world), name: "immersive_narrow", width: 350)
             snap(FeedSkeleton(mode: .list), name: "skeleton_list")
             snap(SplashView(), name: "splash")
         } catch {
