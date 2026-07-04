@@ -78,6 +78,7 @@ struct RootView: View {
     }
 
     @State private var swipeDirection: Edge = .trailing
+    @State private var feedDrag: CGFloat = 0
 
     @ViewBuilder private var feed: some View {
         ZStack {
@@ -106,12 +107,23 @@ struct RootView: View {
         .animation(Theme.Motion.feed, value: store.selectedSource)
         .animation(Theme.Motion.feed, value: store.browse)
         .animation(Theme.Motion.feed, value: store.isLoadingSelected)
+        .offset(x: feedDrag)
+        .opacity(1 - Double(abs(feedDrag)) / 900)
         .simultaneousGesture(
-            DragGesture(minimumDistance: 30)
+            DragGesture(minimumDistance: 12)
+                .onChanged { v in
+                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                    feedDrag = v.translation.width * 0.9          // tracks from the first pixels
+                    swipeDirection = v.translation.width < 0 ? .trailing : .leading
+                }
                 .onEnded { v in
-                    guard abs(v.translation.width) > 60,
-                          abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
-                    stepTopic(v.translation.width < 0 ? 1 : -1)
+                    let commit = abs(v.translation.width) > 70 && abs(v.translation.width) > abs(v.translation.height) * 1.2
+                    if commit {
+                        feedDrag = 0                              // new feed slides in via transition
+                        stepTopic(v.translation.width < 0 ? 1 : -1)
+                    } else {
+                        withAnimation(Theme.Motion.card) { feedDrag = 0 }   // spring back
+                    }
                 }
         )
     }
@@ -142,19 +154,30 @@ struct TopicBar: View {
     @FocusState private var draftFocused: Bool
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                if store.browse == .topics {
-                    ForEach(store.topicBar, id: \.self) { topic in chip(topic) }
-                    addChip
-                } else {
-                    ForEach(store.sourceBar, id: \.self) { source in sourceChip(source) }
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if store.browse == .topics {
+                        ForEach(store.topicBar, id: \.self) { topic in chip(topic).id(topic) }
+                        addChip
+                    } else {
+                        ForEach(store.sourceBar, id: \.self) { source in sourceChip(source).id(source) }
+                    }
                 }
+                .padding(.horizontal, 16)
+                #if os(macOS)
+                .gesture(barDragScroll(proxy))   // mouse drag scrolls the bar (touch does this natively)
+                #endif
             }
-            .padding(.horizontal, 16)
+            .scrollClipDisabled()
+            .task { if store.browse == .sources { await store.loadSources() } }
+            .onChange(of: store.selectedTopic) { _, sel in
+                withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) }
+            }
+            .onChange(of: store.selectedSource) { _, sel in
+                withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) }
+            }
         }
-        .scrollClipDisabled()
-        .task { if store.browse == .sources { await store.loadSources() } }
     }
 
     private func chip(_ topic: String) -> some View {
@@ -185,6 +208,25 @@ struct TopicBar: View {
             }
         }
     }
+
+    #if os(macOS)
+    @State private var barDragAccum: CGFloat = 0
+    private func barDragScroll(_ proxy: ScrollViewProxy) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { v in
+                let bar = store.browse == .topics ? store.topicBar : store.sourceBar
+                let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+                guard let idx = bar.firstIndex(of: current) else { return }
+                let steps = Int((-v.translation.width - barDragAccum) / 70)
+                if steps != 0 {
+                    barDragAccum += CGFloat(steps) * 70
+                    let target = max(0, min(bar.count - 1, idx + steps))
+                    withAnimation(Theme.Motion.snappy) { proxy.scrollTo(bar[target], anchor: .center) }
+                }
+            }
+            .onEnded { _ in barDragAccum = 0 }
+    }
+    #endif
 
     private func sourceChip(_ source: String) -> some View {
         let selected = store.selectedSource == source
