@@ -242,22 +242,24 @@ struct TopicBar: View {
     private func chip(_ topic: String) -> some View {
         let selected = store.selectedTopic == topic
         let custom = store.customTopics.contains(topic)
+        let labelContent = HStack(spacing: 5) {
+            if custom {
+                Image(systemName: "dot.radiowaves.left.and.right").font(.caption2)
+            }
+            Text(topic.capitalized)
+        }
+        .font(Theme.Text.meta)
         return Button {
             KineticGate.suppressed = false   // direct tap earns the kinetic cascade
             withAnimation(Theme.Motion.snappy) { store.selectedTopic = topic }
             if custom { Task { await store.loadCustom(topic) } }
         } label: {
-            HStack(spacing: 5) {
-                if custom {
-                    Image(systemName: "dot.radiowaves.left.and.right").font(.caption2)
-                }
-                Text(topic.capitalized)
-            }
-            .font(Theme.Text.meta)
+            labelContent
+            .overlay { pillMaskedWhite(topic) { labelContent } }
             .padding(.horizontal, 14).padding(.vertical, 8)
             .background(Theme.panel.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), in: Capsule())
             .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), lineWidth: 1))
-            .foregroundStyle(selected ? .white : .secondary)
+            .foregroundStyle(.secondary)
             .background(GeometryReader { g in
                 Color.clear.preference(key: ChipFramesKey.self, value: [topic: g.frame(in: .named("chipbar"))])
             })
@@ -277,18 +279,26 @@ struct TopicBar: View {
         }
     }
 
+    /// Interpolated pill rect in chip-bar space (single source of truth).
+    private func pillRect() -> CGRect? {
+        let bar = store.browse == .topics ? store.topicBar : store.sourceBar
+        let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+        guard let idx = bar.firstIndex(of: current), let from = chipFrames[current] else { return nil }
+        let p = store.swipeProgress
+        let targetItem = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
+        let to = chipFrames[targetItem] ?? from
+        let f = abs(p)
+        return CGRect(x: from.minX + (to.minX - from.minX) * f,
+                      y: from.minY,
+                      width: from.width + (to.width - from.width) * f,
+                      height: from.height)
+    }
+
     /// The selection pill: tracks the finger — interpolates between the current and
     /// target chip frames in proportion to the carousel's live swipe progress.
     @ViewBuilder private var movingIndicator: some View {
-        let bar = store.browse == .topics ? store.topicBar : store.sourceBar
-        let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
-        if let idx = bar.firstIndex(of: current), let from = chipFrames[current] {
-            let p = store.swipeProgress
-            let targetItem = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
-            let to = chipFrames[targetItem] ?? from
-            let f = abs(p)
-            let x = from.minX + (to.minX - from.minX) * f
-            let wd = from.width + (to.width - from.width) * f
+        if let r = pillRect() {
+            let x = r.minX, wd = r.width, from = r
             Capsule()
                 .fill(Theme.selectionGradient)
                 .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
@@ -296,6 +306,21 @@ struct TopicBar: View {
                 .offset(x: x, y: from.minY)
                 // No value-gated animation: finger updates arrive un-animated (instant tracking),
                 // commit/cancel/tap updates arrive inside withAnimation transactions (smooth glide).
+        }
+    }
+
+    /// White text revealed by the pill itself: the label's white layer is masked to the
+    /// pill's rect, so glyphs whiten pixel-by-pixel as the pill's edge crosses them.
+    @ViewBuilder private func pillMaskedWhite<L: View>(_ item: String, @ViewBuilder label: () -> L) -> some View {
+        if let pf = pillRect(), let cf = chipFrames[item], pf.intersects(cf) {
+            label()
+                .foregroundStyle(.white)
+                .mask(alignment: .topLeading) {
+                    Capsule()
+                        .frame(width: pf.width, height: pf.height)
+                        .offset(x: pf.minX - cf.minX, y: 0)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
         }
     }
 
@@ -319,17 +344,19 @@ struct TopicBar: View {
 
     private func sourceChip(_ source: String) -> some View {
         let selected = store.selectedSource == source
+        let labelContent = Text(source)
+            .font(Theme.Text.meta)
+            .lineLimit(1)
         return Button {
             KineticGate.suppressed = false
             withAnimation(Theme.Motion.snappy) { store.selectedSource = source }
         } label: {
-            Text(source)
-                .font(Theme.Text.meta)
-                .lineLimit(1)
+            labelContent
+                .overlay { pillMaskedWhite(source) { labelContent } }
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Theme.panel.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), in: Capsule())
                 .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), lineWidth: 1))
-                .foregroundStyle(selected ? .white : .secondary)
+                .foregroundStyle(.secondary)
                 .background(GeometryReader { g in
                     Color.clear.preference(key: ChipFramesKey.self, value: [source: g.frame(in: .named("chipbar"))])
                 })
