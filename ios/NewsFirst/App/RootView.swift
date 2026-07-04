@@ -51,28 +51,8 @@ struct RootView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Button {
-                withAnimation(Theme.Motion.card) {
-                    store.browse = store.browse == .topics ? .sources : .topics
-                }
-                if store.browse == .sources { Task { await store.loadSources() } }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
-                        .font(.caption2.bold())
-                    Text(store.browse.rawValue.uppercased())
-                        .font(Theme.Text.badge)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
-                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                .foregroundStyle(.white)
-                .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
-            }
-            .buttonStyle(PressableStyle())
-            Spacer()
-            Spacer(minLength: 6)
+        ZStack {
+            // Absolutely centered view selector, regardless of side-control widths
             Picker("View", selection: Binding(
                 get: { store.mode },
                 set: { m in withAnimation(Theme.Motion.feed) { store.mode = m } }
@@ -81,12 +61,34 @@ struct RootView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 185)
-            Button { showSettings = true } label: {
-                Image(systemName: "gearshape.fill")
-                    .foregroundStyle(.secondary)
+            .frame(width: 200)
+            HStack {
+                Button {
+                    withAnimation(Theme.Motion.card) {
+                        store.browse = store.browse == .topics ? .sources : .topics
+                    }
+                    if store.browse == .sources { Task { await store.loadSources() } }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
+                            .font(.caption2.bold())
+                        Text(store.browse.rawValue.uppercased())
+                            .font(Theme.Text.badge)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                    .foregroundStyle(.white)
+                    .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
+                }
+                .buttonStyle(PressableStyle())
+                Spacer()
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(PressableStyle())
             }
-            .buttonStyle(PressableStyle())
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
