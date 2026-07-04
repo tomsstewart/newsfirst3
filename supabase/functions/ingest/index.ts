@@ -117,7 +117,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[] }[]> {
   if (items.length === 0) return [];
   const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
-{"topics": [1-3 slugs from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming],
+{"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics],
  "entities": [lowercased key people/companies/products, max 5],
  "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty]}
 Headlines:

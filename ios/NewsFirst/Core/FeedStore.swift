@@ -79,7 +79,8 @@ final class FeedStore {
             sourceResults[s] = (try? await api.fetchSource(s)) ?? []
         } else if !isCustomSelected {
             let t = selectedTopic
-            guard articles.filter({ $0.topics.contains(t) }).isEmpty, topicExtra[t] == nil else { return }
+            // Backfill thin topics too, not just empty ones — every section deserves a full page.
+            guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return }
             topicExtra[t] = (try? await api.fetchTopic(t)) ?? []
         }
     }
@@ -165,7 +166,23 @@ final class FeedStore {
             base = local.isEmpty ? (topicExtra[topic] ?? []) : local + (topicExtra[topic] ?? []).filter { e in !local.contains(where: { $0.id == e.id }) }
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
-        return diversify(filtered.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) })
+        let ranked = filtered.sorted {
+            // score first; among peers prefer image-bearing (beautiful sections), then freshness
+            if $0.score != $1.score { return $0.score > $1.score }
+            if ($0.imageURL != nil) != ($1.imageURL != nil) { return $0.imageURL != nil }
+            return $0.publishedAt > $1.publishedAt
+        }
+        return diversify(collapseDuplicates(ranked))
+    }
+
+    /// Same story from many feeds: keep the best-ranked telling, drop echoes.
+    private func collapseDuplicates(_ input: [Article]) -> [Article] {
+        var seen: Set<String> = []
+        return input.filter { a in
+            let key = String(a.title.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(56))
+            guard !key.isEmpty else { return true }
+            return seen.insert(key).inserted
+        }
     }
 
     var isLoadingSelected: Bool {
@@ -183,7 +200,7 @@ final class FeedStore {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let fresh = try await api.fetchFeed(limit: 450)
+            let fresh = try await api.fetchFeed(limit: 350)
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
             prefetchImages()
