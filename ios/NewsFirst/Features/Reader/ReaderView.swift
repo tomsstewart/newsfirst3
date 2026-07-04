@@ -13,20 +13,8 @@ struct ReaderSheet: View {
 
     var body: some View {
         #if os(iOS)
-        ZStack(alignment: .topTrailing) {
-            SafariView(url: article.url, readerMode: store.readerMode)
-                .ignoresSafeArea()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.footnote.bold())
-                    .foregroundStyle(.primary)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .buttonStyle(PressableStyle())
-            .padding(.trailing, 14)
-            .padding(.top, 8)
-        }
+        SafariView(url: article.url, readerMode: store.readerMode)
+            .ignoresSafeArea()
         #else
         VStack(spacing: 0) {
             HStack {

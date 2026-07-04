@@ -74,7 +74,9 @@ struct KineticEntrance: ViewModifier {
             .opacity(shown ? 1 : 0)
             .offset(y: shown ? 0 : 26)
             .onAppear {
-                if KineticGate.suppressed {
+                // The rise is a topic-entry flourish for the first screenful only;
+                // rows appearing during scroll must arrive already-settled.
+                if KineticGate.suppressed || index > 7 {
                     shown = true
                 } else {
                     // POC .kn-rise: cubic-bezier(.2,.75,.25,1) over 0.65s, 0.12s stagger
