@@ -5,3 +5,6 @@ ingest/node_modules/
 ingest/.wrangler/
 *.p8
 .env*
+demo/NewsFirstDemo
+demo/NewsFirst Demo.app/
+demo/out/

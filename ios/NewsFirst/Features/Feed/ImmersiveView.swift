@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(Inject)
 import Inject
+#endif
 
 /// Immersive view — full-bleed vertical paging, TikTok-feel.
 /// v2 data: immersive sessions ran 2.4× longer with 2.3× the reading depth — this is the
@@ -7,7 +9,9 @@ import Inject
 /// pre-warmed images, zero work during scroll.
 struct ImmersiveView: View {
     @Environment(FeedStore.self) private var store
+    #if canImport(Inject)
     @ObserveInjection var inject
+    #endif
 
     var body: some View {
         ScrollView(.vertical) {
@@ -22,12 +26,15 @@ struct ImmersiveView: View {
         .scrollTargetBehavior(.paging)
         .ignoresSafeArea()
         .background(.black)
+        #if canImport(Inject)
         .enableInjection()
+        #endif
     }
 }
 
 struct ImmersivePage: View {
     let article: Article
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -36,26 +43,30 @@ struct ImmersivePage: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Text(article.tier.rawValue.uppercased())
-                        .font(Theme.Type.meta)
+                        .font(Theme.Text.meta)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Theme.tierColor(article.tier), in: Capsule())
-                    Text(article.sourceName).font(Theme.Type.meta)
+                    Text(article.sourceName).font(Theme.Text.meta)
                 }
                 .foregroundStyle(.white)
                 Text(article.title)
-                    .font(Theme.Type.headline)
+                    .font(Theme.Text.headline)
                     .foregroundStyle(.white)
                 if let excerpt = article.excerpt {
                     Text(excerpt)
-                        .font(Theme.Type.excerpt)
+                        .font(Theme.Text.excerpt)
                         .foregroundStyle(.white.opacity(0.8))
                         .lineLimit(3)
                 }
-                Link("Read article", destination: article.url)
-                    .font(Theme.Type.cardTitle)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(.white.opacity(0.2), in: Capsule())
+                Button { openURL(article.url) } label: {
+                    Text("Read article")
+                        .font(Theme.Text.cardTitle)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(.white.opacity(0.22), in: Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
             .padding(24)
             .padding(.bottom, 40)
@@ -64,7 +75,10 @@ struct ImmersivePage: View {
 
     @ViewBuilder private var imageView: some View {
         GeometryReader { geo in
-            if let url = article.imageURL {
+            if let url = article.imageURL, let cg = ImagePipeline.preloaded[url] {
+                Image(decorative: cg, scale: 2).resizable().aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: geo.size.height).clipped()
+            } else if let url = article.imageURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):

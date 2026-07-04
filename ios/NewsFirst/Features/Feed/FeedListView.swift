@@ -1,10 +1,14 @@
 import SwiftUI
+#if canImport(Inject)
 import Inject
+#endif
 
 /// The List view — the fast catch-up surface.
 struct FeedListView: View {
     @Environment(FeedStore.self) private var store
+    #if canImport(Inject)
     @ObserveInjection var inject   // hot reload via InjectionIII
+    #endif
 
     var body: some View {
         ScrollView {
@@ -17,8 +21,10 @@ struct FeedListView: View {
             .padding(.horizontal, 16)
         }
         .refreshable { await store.refresh() }
-        .background(Color(.systemGroupedBackground))
+        .background(Theme.groupedBackground)
+        #if canImport(Inject)
         .enableInjection()
+        #endif
     }
 }
 
@@ -39,22 +45,24 @@ struct ArticleCard: View {
                     Text("·")
                     Text(article.publishedAt, format: .relative(presentation: .named))
                 }
-                .font(Theme.Type.meta)
+                .font(Theme.Text.meta)
                 .foregroundStyle(.secondary)
                 Text(article.title)
-                    .font(Theme.Type.cardTitle)
+                    .font(Theme.Text.cardTitle)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(3)
             }
             .padding(12)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
     }
 
     @ViewBuilder private var imageView: some View {
-        if let url = article.imageURL {
+        if let url = article.imageURL, let cg = ImagePipeline.preloaded[url] {
+            Image(decorative: cg, scale: 2).resizable().aspectRatio(contentMode: .fill)
+        } else if let url = article.imageURL {
             // Phase 3: route through the image proxy (resize + cache + hotlink immunity)
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -68,6 +76,8 @@ struct ArticleCard: View {
     }
 }
 
+#if canImport(Inject)
 #Preview {
     FeedListView().environment(FeedStore())
 }
+#endif

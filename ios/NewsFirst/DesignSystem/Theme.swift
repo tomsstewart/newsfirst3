@@ -4,6 +4,13 @@ import SwiftUI
 enum Theme {
     // MARK: Color
     static let accent = Color(red: 0.12, green: 0.22, blue: 0.39)          // navy
+    #if os(iOS)
+    static let groupedBackground = Color(.systemGroupedBackground)
+    static let cardBackground = Color(.secondarySystemGroupedBackground)
+    #else
+    static let groupedBackground = Color(red: 0.07, green: 0.07, blue: 0.09)
+    static let cardBackground = Color(red: 0.12, green: 0.12, blue: 0.15)
+    #endif
     static let tierHigh = Color(red: 0.85, green: 0.25, blue: 0.20)
     static let tierMedium = Color(red: 0.95, green: 0.62, blue: 0.10)
     static let tierLow = Color(red: 0.20, green: 0.60, blue: 0.40)
@@ -25,7 +32,7 @@ enum Theme {
     }
 
     // MARK: Type
-    enum Type {
+    enum Text {
         static let headline = Font.system(.title3, design: .default, weight: .bold)
         static let cardTitle = Font.system(.headline, weight: .semibold)
         static let excerpt = Font.system(.subheadline)
@@ -41,7 +48,7 @@ struct TopicPlaceholder: View {
             LinearGradient(colors: [Theme.accent, Theme.accent.opacity(0.6)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Text(topic.capitalized)
-                .font(Theme.Type.meta)
+                .font(Theme.Text.meta)
                 .foregroundStyle(.white.opacity(0.85))
         }
     }

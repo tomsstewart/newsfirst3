@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Cache-first article store — the cold-start budget (<400ms to first feed frame) lives here.
 /// The last feed is persisted to disk and rendered synchronously on launch;
@@ -59,7 +60,9 @@ extension JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .custom { decoder in
             let s = try decoder.singleValueContainer().decode(String.self)
-            if let date = ISO8601DateFormatter.fractional.date(from: s) ?? ISO8601DateFormatter().date(from: s) {
+            // Postgres emits up to 6 fractional digits; ISO8601DateFormatter tolerates 3.
+            let trimmed = s.replacingOccurrences(of: #"\.(\d{3})\d+"#, with: ".$1", options: .regularExpression)
+            if let date = ISO8601DateFormatter.fractional.date(from: trimmed) ?? ISO8601DateFormatter().date(from: trimmed) {
                 return date
             }
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "bad date \(s)"))
