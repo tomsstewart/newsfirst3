@@ -146,7 +146,10 @@ final class FeedStore {
         let current = browse == .topics ? selectedTopic : selectedSource
         guard let idx = bar.firstIndex(of: current) else { return visible }
         let item = bar[(idx + offset + bar.count) % bar.count]
-        return browse == .topics ? visibleItems(topic: item, source: "") : visibleItems(topic: "", source: item)
+        let key = browse == .topics ? "t:\(item)" : "s:\(item)"
+        let cap = renderCaps[key] ?? Self.pageSize
+        let items = browse == .topics ? visibleItems(topic: item, source: "") : visibleItems(topic: "", source: item)
+        return Array(items.prefix(cap))   // page cap applies to EVERY render path, not just `visible`
     }
 
     func barItem(offset: Int) -> String {
