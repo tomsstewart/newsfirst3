@@ -6,8 +6,8 @@ Strategy: `../NewsFirst v3 Strategy.md` · Plan: `docs/DELIVERY_PLAN.md`.
 ## Layout
 
 ```
-supabase/migrations/   schema (applied to project sbqdvtzsezxupxxbmjsb)
-ingest/                Cloudflare Worker: RSS polling, enrichment, scoring, health
+supabase/migrations/   schema + cron (applied to project sbqdvtzsezxupxxbmjsb)
+supabase/functions/    ingest edge function: RSS polling, enrichment, scoring, health
 ios/                   SwiftUI app (XcodeGen project)
 admin/                 feed-health dashboard (phase 2)
 docs/                  delivery plan
@@ -26,16 +26,19 @@ docs/                  delivery plan
 ### Backend (done)
 Migrations 0001–0003 are applied; 58 sources seeded.
 
-### Ingest worker
+### Ingest edge function (no Cloudflare — everything runs on Supabase)
 ```
-cd ingest
-npm i -g wrangler   # or use npx
-wrangler login
-wrangler secret put SUPABASE_URL
-wrangler secret put SUPABASE_SERVICE_KEY
-wrangler secret put GEMINI_API_KEY
-wrangler deploy
+supabase login                                    # one-time, opens browser
+supabase link --project-ref sbqdvtzsezxupxxbmjsb
+supabase secrets set GEMINI_API_KEY=<key from aistudio.google.com>
+supabase functions deploy ingest
 ```
+Then one SQL statement in the Dashboard SQL editor to arm the (already-scheduled) cron jobs:
+```sql
+select vault.create_secret('<service-role-key from Settings → API>', 'service_role_key');
+```
+pg_cron then invokes the function every 5 min (ingest), hourly (health watchdog), and daily (90-day purge).
+The key lives in Vault — never plaintext in cron commands (v2's mistake).
 
 ### iOS
 ```

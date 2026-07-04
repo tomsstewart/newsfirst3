@@ -1,8 +1,13 @@
 /**
- * NewsFirst v3 ingest worker.
- * Cron tick: pick due sources → conditional GET → parse → dedupe → enrich → score once → insert.
+ * NewsFirst v3 ingest — Supabase Edge Function (Deno).
+ * Invoked by pg_cron via pg_net: ?task=ingest every 5 min, ?task=watchdog hourly.
+ * Tick: pick due sources → conditional GET → parse → dedupe → enrich → score once → insert.
  * Health: exponential backoff + auto-fix ladder; nothing is ever silently disabled (v2's sin).
- * Scoring is write-once; decay/tiers are computed at read time in Postgres.
+ * Scoring is write-once; decay/tiers are computed at read time in Postgres — unlike v2,
+ * this function issues ZERO article updates.
+ *
+ * Secrets: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected by the platform;
+ * set GEMINI_API_KEY via `supabase secrets set` or Dashboard → Edge Functions → Secrets.
  */
 
 export interface Env {
@@ -228,8 +233,19 @@ async function healthWatchdog(env: Env): Promise<void> {
   // TODO(phase 4): digest generation at each user's digest_hour.
 }
 
-export default {
-  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(event.cron === "0 * * * *" ? healthWatchdog(env) : ingestTick(env));
-  },
-};
+Deno.serve(async (req: Request) => {
+  const env: Env = {
+    SUPABASE_URL: Deno.env.get("SUPABASE_URL")!,
+    SUPABASE_SERVICE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    GEMINI_API_KEY: Deno.env.get("GEMINI_API_KEY") ?? "",
+  };
+  // Only the service role may trigger ingestion (verify_jwt alone would admit the public anon key).
+  const bearer = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (bearer !== env.SUPABASE_SERVICE_KEY) {
+    return new Response("forbidden", { status: 403 });
+  }
+  const task = new URL(req.url).searchParams.get("task") ?? "ingest";
+  if (task === "watchdog") await healthWatchdog(env);
+  else await ingestTick(env);
+  return new Response(JSON.stringify({ ok: true, task }), { headers: { "Content-Type": "application/json" } });
+});

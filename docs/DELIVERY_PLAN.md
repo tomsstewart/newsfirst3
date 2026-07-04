@@ -17,7 +17,7 @@
 | Notification control | **Per-topic notify level: `none` / `high` (high-priority only) / `all` (every match)** — first-class product feature, already in the schema. |
 | Ingestion | Self-crawled RSS (58 curated v2 feeds carried over) + **Google News RSS query feeds per custom topic** for long-tail coverage. |
 | Backend | New Supabase project `sbqdvtzsezxupxxbmjsb` (Postgres 17.6). Data API on, tables explicitly exposed, RLS everywhere, read-time scoring. |
-| Ingest compute | Cloudflare Worker on cron (free tier), service key held only in Worker secrets. |
+| Ingest compute | **Supabase Edge Function on pg_cron** (no separate Cloudflare account); service key held in Vault, never plaintext in cron (v2's mistake). |
 | AI enrichment | Gemini Flash-Lite (free tier, batched) for topics/entities/regions at ingest. |
 | Payments | RevenueCat over StoreKit 2; Apple Small Business Program (15%). |
 | Analytics | Existing PostHog project; install-UUID identification from first launch; full alert funnel (`notif_sent/delivered/opened`) server- and client-side. |
@@ -42,10 +42,10 @@ Native SwiftUI makes these the default rather than an achievement — that's why
 
 ```
 58 RSS feeds + Google News query feeds (per custom topic)
-   │ Cloudflare Worker cron (adaptive per-feed polling, conditional GET)
+   │ Supabase Edge Function on pg_cron (adaptive per-feed polling, conditional GET)
    ▼
 parse → normalise/dedupe (url_hash) → Gemini enrich (topics/entities/regions, batched)
-   → base_score (write once) → INSERT via PostgREST (service key in Worker secret)
+   → base_score (write once) → INSERT via PostgREST (service role)
    │
    ├─ alert matcher: new article × topic_subscriptions (notify_level all/high)
    │     → APNs (time-sensitive for instant/breaking; article payload embedded)
@@ -61,7 +61,7 @@ RevenueCat paywall · PostHog · feed-health admin page + self-alert pushes
 
 ## 3. Feed fetching, health, and auto-fix (design detail)
 
-**Fetching.** Worker cron every 5 min selects sources where `backoff_until < now()` and `last_fetch_at + poll_interval_s < now()`. Conditional GET (ETag/Last-Modified → 304 = free). `poll_interval_s` adapts: halves (floor 5 min) when a poll finds new items, grows 1.5× (cap 6h) when quiet — busy feeds get polled fast, dead-quiet ones stop wasting requests. Custom topics get Google News RSS query feeds created on subscription, polled on the same loop, feeding the alert matcher (reader cards still prefer curated sources).
+**Fetching.** The ingest function (pg_cron, every 5 min) selects sources where `backoff_until < now()` and `last_fetch_at + poll_interval_s < now()`. Conditional GET (ETag/Last-Modified → 304 = free). `poll_interval_s` adapts: halves (floor 5 min) when a poll finds new items, grows 1.5× (cap 6h) when quiet — busy feeds get polled fast, dead-quiet ones stop wasting requests. Custom topics get Google News RSS query feeds created on subscription, polled on the same loop, feeding the alert matcher (reader cards still prefer curated sources).
 
 **Health states, replacing v2's silent death (20 fails → disabled forever):**
 
@@ -75,25 +75,25 @@ RevenueCat paywall · PostHog · feed-health admin page + self-alert pushes
 3. Re-discover the feed from the source's homepage `<link rel="alternate">` (fixes restructured sites).
 4. Parse tolerantly (encoding sniff, HTML-entity repair) before declaring a parse failure.
 
-**Freshness watchdog** (separate daily check): a source that fetches fine but has produced zero new items for 7 days is flagged `degraded` too — silent-empty is a failure mode HTTP 200 hides. All of this lands in `ingest_runs` + the `sources` health columns (already in the schema), surfaced on a one-page admin dashboard (Cloudflare Pages, phase 2).
+**Freshness watchdog** (separate daily check): a source that fetches fine but has produced zero new items for 7 days is flagged `degraded` too — silent-empty is a failure mode HTTP 200 hides. All of this lands in `ingest_runs` + the `sources` health columns (already in the schema), surfaced on a one-page admin dashboard (static page on GitHub Pages, phase 2).
 
 ## 4. Phases, owners, exit criteria
 
 ### Phase 1 — Foundation ✅ (done today, by Claude)
-Schema live on the new project (read-time scoring, notify levels, alert funnel, health columns, free-tier trigger enforced server-side) · 58 sources seeded · repo scaffolded (iOS + Worker + migrations) · this plan.
+Schema live on the new project (read-time scoring, notify levels, alert funnel, health columns, free-tier trigger enforced server-side) · 58 sources seeded · repo scaffolded (iOS + edge function + migrations) · this plan.
 
 ### Phase 2 — Ingest pipeline live (Claude-heavy; needs Tom ~30 min)
-Worker deployed on cron: polling, dedupe, enrichment, scoring, inserts; health/backoff/auto-fix; `ingest_runs` populated.
-**Tom:** create/connect Cloudflare account, `wrangler login`, set 3 secrets (Supabase service key, Gemini API key — free tier, DB URL). Rotate the DB password you pasted into chat.
+Edge function deployed on pg_cron: polling, dedupe, enrichment, scoring, inserts; health/backoff/auto-fix; `ingest_runs` populated.
+**Tom:** `supabase login` + `supabase functions deploy ingest`, set GEMINI_API_KEY secret, one Vault SQL statement (see README). Rotate the DB password you pasted into chat.
 **Exit:** articles flowing for 48h, zero manual interventions, admin queries show all sources `ok`/`degraded` with reasons.
 
 ### Phase 3 — App core (Claude scaffolds + writes; Tom builds/runs in Xcode)
 Xcode project (XcodeGen), guest feed from cache-first store, List + Immersive views hitting the §1 budgets, Sign in with Apple/Google, topic onboarding (topics **before** signup, permission prompt with payoff shown), per-topic notify-level control, PostHog wired.
-**Tom:** Apple Developer portal (bundle id, capabilities: push + time-sensitive + NSE), first device run, feel-check on a ProMotion iPhone.
+**Tom:** Apple Developer portal (existing bundle id `com.ant2555.newsfirst` — v3 ships as an update to the existing App Store app; capabilities: push + time-sensitive + NSE), first device run, feel-check on a ProMotion iPhone.
 **Exit:** cold start < 400ms on device; 120Hz Instruments trace clean; guest → signup → topics → permission flow complete.
 
 ### Phase 4 — The alert loop (the product)
-APNs sender in Worker (token auth, payload embeds article), NSE pre-caching, render-from-payload article screen, alert funnel events end-to-end, digest generator, breaking-news velocity promotion.
+APNs sender in the edge function (token auth, payload embeds article), NSE pre-caching, render-from-payload article screen, alert funnel events end-to-end, digest generator, breaking-news velocity promotion.
 **Exit:** notification tap → article < 1s cold; `sent → delivered → opened` visible in PostHog for real pushes; quiet hours + daily caps enforced (v2 never enforced them).
 
 ### Phase 5 — Monetisation + TestFlight
@@ -109,7 +109,7 @@ App Store listing (guest mode satisfies 5.1.1), Apple Search Ads on alert-intent
 | Claude (autonomous) | Tom (account owner, ~2h total across phases) |
 |---|---|
 | All schema/migrations, seeds, SQL functions | Rotate DB password; add service key to Worker secrets |
-| All Worker code + tests; deploy once wrangler is authed | Cloudflare account + `wrangler login` (once) |
+| All edge-function code + tests; deploy once CLI is authed | `supabase login` (once); Vault secret SQL |
 | All Swift/SwiftUI code, project config, design system | Xcode installed, Apple Developer: bundle id, push key, entitlements |
 | PostHog dashboards/insights; owner-cohort fix | App Store Connect app record, TestFlight, review submissions |
 | Admin dashboard page | RevenueCat account + App Store Connect API key |
@@ -118,6 +118,6 @@ App Store listing (guest mode satisfies 5.1.1), Apple Search Ads on alert-intent
 ## 6. Risks specific to this plan
 
 1. **Solo native stack**: no OTA updates — mitigated by TestFlight-first releases and the InjectionIII/Previews loop for development speed; App Review is ~24h for fixes.
-2. **APNs from a Worker**: token-based APNs over HTTP/2 from Cloudflare Workers is proven but fiddly (p8 key handling) — fallback is a tiny push relay or OneSignal free tier without changing the schema.
+2. **APNs from an edge function**: token-based APNs over HTTP/2 from Deno is proven but fiddly (p8 key handling) — fallback is a tiny push relay or OneSignal free tier without changing the schema.
 3. **Google News query feeds are unofficial** — used for alert matching only; curated feeds remain the reader backbone; per-source RSS is the Pro upgrade path.
 4. **Free-tier ceilings** (Supabase 500MB, Gemini 1,500 req/day): both are ~10× headroom at current volume; paid fallbacks ≤£25/mo named in the strategy.

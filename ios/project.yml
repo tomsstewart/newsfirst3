@@ -17,7 +17,9 @@ targets:
       - package: Inject
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ant2555.newsfirst3
+        # Same bundle id as v2 — v3 ships as an UPDATE to the existing App Store app
+        # (keeps the NewsFirst name, listing, and existing installs; version becomes 2.0.0)
+        PRODUCT_BUNDLE_IDENTIFIER: com.ant2555.newsfirst
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         SWIFT_VERSION: "6.0"
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
