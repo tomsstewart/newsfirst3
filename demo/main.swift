@@ -228,6 +228,7 @@ if CommandLine.arguments.contains("--snapshot") {
             snap(SnapImmersive(articles: world), name: "immersive_narrow", width: 350)
             snap(FeedSkeleton(mode: .list), name: "skeleton_list")
             snap(SplashView(), name: "splash")
+            snap(SettingsView(snapshotStatic: true).environment(FeedStore()), name: "settings_page")
         } catch {
             print("SNAPSHOT ERROR: \(error)")
         }

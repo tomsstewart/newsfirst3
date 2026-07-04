@@ -82,51 +82,66 @@ struct RootView: View {
     @State private var feedDrag: CGFloat = 0
 
     @ViewBuilder private var feed: some View {
-        ZStack {
-            if store.isLoadingSelected {
-                FeedSkeleton(mode: store.mode)
-                    .transition(.opacity)
-            } else if store.visible.isEmpty {
-                EmptyTopicView(topic: store.selectedTopic)
-                    .transition(.opacity)
-            } else {
-                Group {
-                    switch store.mode {
-                    case .list: ListFeedView()
-                    case .immersive: ImmersiveFeedView()
-                    case .full: FullFeedView()
+        GeometryReader { geo in
+            let w = geo.size.width
+            ZStack {
+                if store.isLoadingSelected {
+                    FeedSkeleton(mode: store.mode).transition(.opacity)
+                } else {
+                    // Live carousel: neighbour columns are mounted and visible during the drag.
+                    HStack(spacing: 0) {
+                        pane(offset: -1, width: w)
+                        pane(offset: 0, width: w)
+                        pane(offset: 1, width: w)
                     }
+                    .offset(x: -w + feedDrag)
                 }
-                .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.selectedTopic)-\(store.selectedSource)")   // replay kinetic entrances per topic/mode
-                .transition(.asymmetric(
-                    insertion: .move(edge: swipeDirection),
-                    removal: .move(edge: swipeDirection == .trailing ? .leading : .trailing)))   // connected column push
+            }
+            .animation(Theme.Motion.feed, value: store.mode)
+            .animation(Theme.Motion.feed, value: store.isLoadingSelected)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { v in
+                        guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                        feedDrag = v.translation.width
+                    }
+                    .onEnded { v in
+                        let commit = abs(v.translation.width) > w * 0.28 || abs(v.predictedEndTranslation.width) > w * 0.55
+                        if commit {
+                            let delta = v.translation.width < 0 ? 1 : -1
+                            withAnimation(Theme.Motion.feed, completionCriteria: .logicallyComplete) {
+                                feedDrag = CGFloat(-delta) * w
+                            } completion: {
+                                KineticGate.suppressed = true
+                                if store.browse == .sources { store.selectedSource = store.barItem(offset: delta) }
+                                else { store.selectedTopic = store.barItem(offset: delta) }
+                                let landed = store.barItem(offset: 0)
+                                if store.customTopics.contains(landed) { Task { await store.loadCustom(landed) } }
+                                feedDrag = 0
+                            }
+                        } else {
+                            withAnimation(Theme.Motion.card) { feedDrag = 0 }
+                        }
+                    }
+            )
+        }
+    }
+
+    @ViewBuilder private func pane(offset: Int, width: CGFloat) -> some View {
+        let items = store.visibleAt(offset: offset)
+        Group {
+            if items.isEmpty {
+                EmptyTopicView(topic: store.barItem(offset: offset))
+            } else {
+                switch store.mode {
+                case .list: ListFeedView(items: items)
+                case .immersive: ImmersiveFeedView(items: items)
+                case .full: FullFeedView(items: items)
+                }
             }
         }
-        .animation(Theme.Motion.feed, value: store.mode)
-        .animation(Theme.Motion.feed, value: store.selectedTopic)
-        .animation(Theme.Motion.feed, value: store.selectedSource)
-        .animation(Theme.Motion.feed, value: store.browse)
-        .animation(Theme.Motion.feed, value: store.isLoadingSelected)
-        .offset(x: feedDrag)
-        .opacity(1 - Double(abs(feedDrag)) / 900)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 12)
-                .onChanged { v in
-                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                    feedDrag = v.translation.width * 0.9          // tracks from the first pixels
-                    swipeDirection = v.translation.width < 0 ? .trailing : .leading
-                }
-                .onEnded { v in
-                    let commit = abs(v.translation.width) > 70 && abs(v.translation.width) > abs(v.translation.height) * 1.2
-                    if commit {
-                        feedDrag = 0                              // new feed slides in via transition
-                        stepTopic(v.translation.width < 0 ? 1 : -1)
-                    } else {
-                        withAnimation(Theme.Motion.card) { feedDrag = 0 }   // spring back
-                    }
-                }
-        )
+        .frame(width: width)
+        .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.barItem(offset: offset))")
     }
 
     /// Swipe left/right anywhere on the feed pages through the topic bar.
@@ -167,6 +182,7 @@ struct TopicBar: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                .scrollTargetLayout()
                 #if os(macOS)
                 .gesture(barDragScroll(proxy))   // mouse drag scrolls the bar (touch does this natively)
                 #endif
@@ -213,21 +229,20 @@ struct TopicBar: View {
     }
 
     #if os(macOS)
-    @State private var barDragAccum: CGFloat = 0
+    @State private var barDragStart: Int? = nil
     private func barDragScroll(_ proxy: ScrollViewProxy) -> some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { v in
                 let bar = store.browse == .topics ? store.topicBar : store.sourceBar
-                let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
-                guard let idx = bar.firstIndex(of: current) else { return }
-                let steps = Int((-v.translation.width - barDragAccum) / 70)
-                if steps != 0 {
-                    barDragAccum += CGFloat(steps) * 70
-                    let target = max(0, min(bar.count - 1, idx + steps))
-                    withAnimation(Theme.Motion.snappy) { proxy.scrollTo(bar[target], anchor: .center) }
+                guard !bar.isEmpty else { return }
+                if barDragStart == nil {
+                    let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+                    barDragStart = bar.firstIndex(of: current) ?? 0
                 }
+                let target = max(0, min(bar.count - 1, (barDragStart ?? 0) + Int(-v.translation.width / 64)))
+                proxy.scrollTo(bar[target], anchor: .center)
             }
-            .onEnded { _ in barDragAccum = 0 }
+            .onEnded { _ in barDragStart = nil }
     }
     #endif
 

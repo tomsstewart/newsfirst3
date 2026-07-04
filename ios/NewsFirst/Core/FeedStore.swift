@@ -88,19 +88,38 @@ final class FeedStore {
 
     var isCustomSelected: Bool { customTopics.contains(selectedTopic) }
 
-    /// Articles for the selected topic, source-diversity capped.
-    var visible: [Article] {
+    /// Articles for the selected topic/source, source-diversity capped.
+    var visible: [Article] { visibleItems(topic: selectedTopic, source: selectedSource) }
+
+    /// Bar-relative lookup (wraps) so neighbouring columns can render during a swipe.
+    func visibleAt(offset: Int) -> [Article] {
+        let bar = browse == .topics ? topicBar : sourceBar
+        guard !bar.isEmpty else { return [] }
+        let current = browse == .topics ? selectedTopic : selectedSource
+        guard let idx = bar.firstIndex(of: current) else { return visible }
+        let item = bar[(idx + offset + bar.count) % bar.count]
+        return browse == .topics ? visibleItems(topic: item, source: "") : visibleItems(topic: "", source: item)
+    }
+
+    func barItem(offset: Int) -> String {
+        let bar = browse == .topics ? topicBar : sourceBar
+        let current = browse == .topics ? selectedTopic : selectedSource
+        guard !bar.isEmpty, let idx = bar.firstIndex(of: current) else { return current }
+        return bar[(idx + offset + bar.count) % bar.count]
+    }
+
+    private func visibleItems(topic: String, source: String) -> [Article] {
         if browse == .sources {
-            let local = articles.filter { $0.sourceName == selectedSource }
-            let base = (sourceResults[selectedSource] ?? []).isEmpty ? local : sourceResults[selectedSource]!
+            let local = articles.filter { $0.sourceName == source }
+            let base = (sourceResults[source] ?? []).isEmpty ? local : sourceResults[source]!
             return base.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) }
         }
         let base: [Article]
-        if isCustomSelected {
-            base = customResults[selectedTopic] ?? []
+        if customTopics.contains(topic) {
+            base = customResults[topic] ?? []
         } else {
-            let local = articles.filter { $0.topics.contains(selectedTopic) }
-            base = local.isEmpty ? (topicExtra[selectedTopic] ?? []) : local
+            let local = articles.filter { $0.topics.contains(topic) }
+            base = local.isEmpty ? (topicExtra[topic] ?? []) : local
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
         return diversify(filtered.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) })

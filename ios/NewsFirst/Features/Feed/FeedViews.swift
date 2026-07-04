@@ -33,11 +33,12 @@ struct ArticleImage: View {
 
 struct ListFeedView: View {
     @Environment(FeedStore.self) private var store
+    let items: [Article]
     @State private var expandedID: UUID?
     @State private var lowHidden = false
 
     private var bands: [(tier: Article.Tier, items: [Article])] {
-        let v = store.visible
+        let v = items
         return [Article.Tier.high, .medium, .low].compactMap { tier in
             let items = v.filter { $0.tier == tier }
             return items.isEmpty ? nil : (tier, items)
@@ -195,11 +196,12 @@ struct ListRow: View {
 
 struct ImmersiveFeedView: View {
     @Environment(FeedStore.self) private var store
+    let items: [Article]
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 14) {
-                ForEach(Array(store.visible.enumerated()), id: \.element.id) { index, article in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, article in
                     Button { store.reading = article } label: {
                         ImmersiveCard(article: article, hero: index == 0)
                     }
@@ -259,12 +261,13 @@ struct ImmersiveCard: View {
 
 struct FullFeedView: View {
     @Environment(FeedStore.self) private var store
+    let items: [Article]
 
     var body: some View {
         GeometryReader { geo in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
-                    ForEach(store.visible) { article in
+                    ForEach(items) { article in
                         FullPage(article: article)
                             .frame(width: geo.size.width, height: geo.size.height)
                     }
@@ -284,11 +287,15 @@ struct FullPage: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            ArticleImage(article: article, width: 900)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-            LinearGradient(colors: [.clear, .black.opacity(0.35), .black.opacity(0.9)],
-                           startPoint: .init(x: 0.5, y: 0.35), endPoint: .bottom)
+            // Image is hard-bounded to the page: aspect-fill must never widen the stack
+            // (that pushed the text block outside the clip — "text completely failing").
+            GeometryReader { g in
+                ArticleImage(article: article, width: 900)
+                    .frame(width: g.size.width, height: g.size.height)
+                    .clipped()
+            }
+            LinearGradient(colors: [.clear, .black.opacity(0.45), .black.opacity(0.94)],
+                           startPoint: .init(x: 0.5, y: 0.28), endPoint: .bottom)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     TierBadge(tier: article.tier, loud: true)
@@ -318,6 +325,7 @@ struct FullPage: View {
             .padding(22)
             .padding(.bottom, 34)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
         }
         .clipped()
         .contentShape(Rectangle())
