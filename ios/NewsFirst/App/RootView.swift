@@ -119,6 +119,7 @@ struct RootView: View {
                     .onChanged { v in
                         guard abs(v.translation.width) > abs(v.translation.height) else { return }
                         feedDrag = v.translation.width
+                        store.swipeProgress = max(-1, min(1, -v.translation.width / w))
                     }
                     .onEnded { v in
                         let commit = abs(v.translation.width) > w * 0.28 || abs(v.predictedEndTranslation.width) > w * 0.55
@@ -134,9 +135,10 @@ struct RootView: View {
                                 if store.customTopics.contains(landed) { Task { await store.loadCustom(landed) } }
                                 store.prefetchImages()
                                 feedDrag = 0
+                                store.swipeProgress = 0
                             }
                         } else {
-                            withAnimation(Theme.Motion.card) { feedDrag = 0 }
+                            withAnimation(Theme.Motion.card) { feedDrag = 0; store.swipeProgress = 0 }
                         }
                     }
             )
@@ -187,6 +189,7 @@ extension EnvironmentValues {
 struct TopicBar: View {
     @Environment(FeedStore.self) private var store
     @Namespace private var chipSelection
+    @State private var chipFrames: [String: CGRect] = [:]
     @State private var draggedTopic: String?
     @State private var addingTopic = false
     @State private var draft = ""
@@ -204,6 +207,9 @@ struct TopicBar: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                .coordinateSpace(name: "chipbar")
+                .onPreferenceChange(ChipFramesKey.self) { chipFrames = $0 }
+                .background(alignment: .topLeading) { movingIndicator }
                 .scrollTargetLayout()
                 #if os(macOS)
                 .gesture(barDragScroll(proxy))   // mouse drag scrolls the bar (touch does this natively)
@@ -236,17 +242,12 @@ struct TopicBar: View {
             }
             .font(Theme.Text.meta)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background {
-                if selected {
-                    Capsule().fill(Theme.selectionGradient)
-                        .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
-                        .matchedGeometryEffect(id: "chip-sel", in: chipSelection)   // glides between chips
-                }
-            }
-            .background(Theme.panel, in: Capsule())
+            .background(Theme.panel.opacity(selected ? 0 : 1), in: Capsule())
             .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder, lineWidth: 1))
             .foregroundStyle(selected ? .white : .secondary)
-            .animation(Theme.Motion.feed, value: store.selectedTopic)
+            .background(GeometryReader { g in
+                Color.clear.preference(key: ChipFramesKey.self, value: [topic: g.frame(in: .named("chipbar"))])
+            })
         }
         .buttonStyle(PressableStyle())
         .onDrag {
@@ -260,6 +261,27 @@ struct TopicBar: View {
                     Label("Remove topic", systemImage: "trash")
                 }
             }
+        }
+    }
+
+    /// The selection pill: tracks the finger — interpolates between the current and
+    /// target chip frames in proportion to the carousel's live swipe progress.
+    @ViewBuilder private var movingIndicator: some View {
+        let bar = store.browse == .topics ? store.topicBar : store.sourceBar
+        let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+        if let idx = bar.firstIndex(of: current), let from = chipFrames[current] {
+            let p = store.swipeProgress
+            let targetItem = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
+            let to = chipFrames[targetItem] ?? from
+            let f = abs(p)
+            let x = from.minX + (to.minX - from.minX) * f
+            let wd = from.width + (to.width - from.width) * f
+            Capsule()
+                .fill(Theme.selectionGradient)
+                .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
+                .frame(width: wd, height: from.height)
+                .offset(x: x, y: from.minY)
+                .animation(p == 0 ? Theme.Motion.feed : nil, value: current)   // snap with finger; glide on tap
         }
     }
 
@@ -291,17 +313,12 @@ struct TopicBar: View {
                 .font(Theme.Text.meta)
                 .lineLimit(1)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background {
-                    if selected {
-                        Capsule().fill(Theme.selectionGradient)
-                            .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
-                            .matchedGeometryEffect(id: "chip-sel", in: chipSelection)
-                    }
-                }
-                .background(Theme.panel, in: Capsule())
+                .background(Theme.panel.opacity(selected ? 0 : 1), in: Capsule())
                 .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder, lineWidth: 1))
                 .foregroundStyle(selected ? .white : .secondary)
-                .animation(Theme.Motion.feed, value: store.selectedSource)
+                .background(GeometryReader { g in
+                    Color.clear.preference(key: ChipFramesKey.self, value: [source: g.frame(in: .named("chipbar"))])
+                })
         }
         .buttonStyle(PressableStyle())
     }
@@ -356,6 +373,13 @@ struct ChipDropDelegate: DropDelegate {
     }
     func performDrop(info: DropInfo) -> Bool { dragged = nil; return true }
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+}
+
+struct ChipFramesKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
 }
 
 // MARK: - Pulsing splash (v2's signature carried forward)

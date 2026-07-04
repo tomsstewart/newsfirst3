@@ -39,6 +39,7 @@ final class FeedStore {
     private(set) var hasLoadedOnce = false
 
     var selectedTopic: String = "world"
+    var swipeProgress: CGFloat = 0   // live drag: -1..1 toward prev/next bar item
     var browse: BrowseMode = .topics
     var selectedSource: String = ""
     private(set) var sources: [FeedSource] = []
