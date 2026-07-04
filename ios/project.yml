@@ -1,0 +1,27 @@
+# XcodeGen spec — `brew install xcodegen && xcodegen generate` in this directory, then open NewsFirst.xcodeproj
+name: NewsFirst
+options:
+  bundleIdPrefix: com.ant2555
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  Inject: # in-simulator hot reload (pair with the InjectionIII app)
+    url: https://github.com/krzysztofzablocki/Inject.git
+    from: 1.5.2
+targets:
+  NewsFirst:
+    type: application
+    platform: iOS
+    sources: [NewsFirst]
+    dependencies:
+      - package: Inject
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ant2555.newsfirst3
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "6.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        OTHER_LDFLAGS: "-Xlinker -interposable"   # required for InjectionIII hot reload in Debug
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+# Phase 3 additions: PostHog + supabase-swift packages, push + time-sensitive entitlements,
+# a NotificationService extension target (image pre-caching), RevenueCat in phase 5.

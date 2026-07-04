@@ -1,0 +1,13 @@
+name = "newsfirst-ingest"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# Poll cadence; the worker itself decides which sources are due (adaptive per-feed intervals)
+[triggers]
+crons = ["*/5 * * * *", "0 * * * *"]  # */5 = ingest tick; hourly = digests + health watchdog
+
+# Secrets (set via `wrangler secret put NAME` — never committed):
+#   SUPABASE_URL            https://sbqdvtzsezxupxxbmjsb.supabase.co
+#   SUPABASE_SERVICE_KEY    service-role key (Dashboard → Settings → API)
+#   GEMINI_API_KEY          Google AI Studio key (free tier)
+#   APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID / APNS_BUNDLE_ID   (phase 4)

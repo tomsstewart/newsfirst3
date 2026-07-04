@@ -1,0 +1,7 @@
+.DS_Store
+ios/NewsFirst.xcodeproj/
+ios/DerivedData/
+ingest/node_modules/
+ingest/.wrangler/
+*.p8
+.env*
