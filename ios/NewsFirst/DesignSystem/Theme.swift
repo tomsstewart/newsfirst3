@@ -130,7 +130,7 @@ struct PriorityBand: View {
             Spacer()
             if let trailing { trailing }
         }
-        .padding(.horizontal, 14).padding(.vertical, 9)
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .background(
             LinearGradient(colors: [Theme.tierColor(tier).opacity(0.22), .clear],
                            startPoint: .leading, endPoint: .trailing)

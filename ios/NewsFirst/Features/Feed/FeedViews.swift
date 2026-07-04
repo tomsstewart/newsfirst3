@@ -82,7 +82,7 @@ struct ListFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 10)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
@@ -212,7 +212,7 @@ struct ListRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ArticleImage(article: article, width: 220)
-                .frame(width: 92, height: 92)
+                .frame(width: 100, height: 100)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
             VStack(alignment: .leading, spacing: 4) {
@@ -271,7 +271,7 @@ struct ImmersiveFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 10)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
