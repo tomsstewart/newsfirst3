@@ -57,6 +57,8 @@ struct RootView: View {
         .padding(.bottom, 10)
     }
 
+    @State private var swipeDirection: Edge = .trailing
+
     @ViewBuilder private var feed: some View {
         ZStack {
             if store.isLoadingSelected {
@@ -66,15 +68,40 @@ struct RootView: View {
                 EmptyTopicView(topic: store.selectedTopic)
                     .transition(.opacity)
             } else {
-                switch store.mode {
-                case .list: ListFeedView().transition(.opacity.combined(with: .scale(scale: 0.995)))
-                case .immersive: ImmersiveFeedView().transition(.opacity.combined(with: .scale(scale: 0.995)))
-                case .full: FullFeedView().transition(.opacity.combined(with: .scale(scale: 0.995)))
+                Group {
+                    switch store.mode {
+                    case .list: ListFeedView()
+                    case .immersive: ImmersiveFeedView()
+                    case .full: FullFeedView()
+                    }
                 }
+                .id("\(store.mode.rawValue)-\(store.selectedTopic)")   // replay kinetic entrances per topic/mode
+                .transition(.asymmetric(
+                    insertion: .move(edge: swipeDirection).combined(with: .opacity),
+                    removal: .opacity))
             }
         }
         .animation(Theme.Motion.feed, value: store.mode)
+        .animation(Theme.Motion.feed, value: store.selectedTopic)
         .animation(Theme.Motion.feed, value: store.isLoadingSelected)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { v in
+                    guard abs(v.translation.width) > 60,
+                          abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
+                    stepTopic(v.translation.width < 0 ? 1 : -1)
+                }
+        )
+    }
+
+    /// Swipe left/right anywhere on the feed pages through the topic bar.
+    private func stepTopic(_ delta: Int) {
+        let bar = store.topicBar
+        guard let idx = bar.firstIndex(of: store.selectedTopic) else { return }
+        let next = (idx + delta + bar.count) % bar.count
+        swipeDirection = delta > 0 ? .trailing : .leading
+        withAnimation(Theme.Motion.feed) { store.selectedTopic = bar[next] }
+        if store.customTopics.contains(bar[next]) { Task { await store.loadCustom(bar[next]) } }
     }
 }
 
@@ -114,9 +141,8 @@ struct TopicBar: View {
             }
             .font(Theme.Text.meta)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(selected ? Theme.accent : Theme.cardBackground, in: Capsule())
+            .glassChip(prominent: selected)
             .foregroundStyle(selected ? .white : .secondary)
-            .overlay(Capsule().strokeBorder(selected ? .clear : Color.primary.opacity(0.06), lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
         .contextMenu {
@@ -136,8 +162,7 @@ struct TopicBar: View {
                 .focused($draftFocused)
                 .frame(width: 110)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Theme.cardBackground, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.5), lineWidth: 1))
+                .glassChip()
                 .onSubmit {
                     store.addCustomTopic(draft)
                     draft = ""
@@ -155,9 +180,8 @@ struct TopicBar: View {
                 }
                 .font(Theme.Text.meta)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Theme.cardBackground, in: Capsule())
+                .glassChip()
                 .foregroundStyle(Theme.accent)
-                .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
         }

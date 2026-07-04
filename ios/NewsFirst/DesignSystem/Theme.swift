@@ -1,31 +1,31 @@
 import SwiftUI
 
-/// Design tokens. One place; no hex literals in feature code.
+/// Midnight Glass palette + Kinetic Editorial motion. One place; no hex literals in feature code.
 enum Theme {
-    static let accent = Color(red: 0.16, green: 0.35, blue: 0.85)   // electric blue
-    static let tierHigh = Color(red: 0.92, green: 0.26, blue: 0.21)
-    static let tierMedium = Color(red: 0.95, green: 0.62, blue: 0.10)
-    static let tierLow = Color(red: 0.35, green: 0.65, blue: 0.45)
+    // Midnight Glass: deep blue-black canvas, translucent panels, glow accents.
+    static let canvas = Color(red: 0.047, green: 0.055, blue: 0.078)        // #0C0E14
+    static let panel = Color(red: 0.082, green: 0.094, blue: 0.129)         // #151824
+    static let panelBorder = Color.white.opacity(0.07)
+    static let accent = Color(red: 0.30, green: 0.62, blue: 0.92)           // glassy blue
+    static let link = Color(red: 0.30, green: 0.62, blue: 0.92)
+
+    static let tierHigh = Color(red: 1.0, green: 0.27, blue: 0.23)
+    static let tierMedium = Color(red: 1.0, green: 0.58, blue: 0.16)
+    static let tierLow = Color(red: 0.24, green: 0.78, blue: 0.45)
 
     static func tierColor(_ tier: Article.Tier) -> Color {
         switch tier { case .high: tierHigh; case .medium: tierMedium; case .low: tierLow }
     }
 
-    #if os(iOS)
-    static let groupedBackground = Color(.systemGroupedBackground)
-    static let cardBackground = Color(.secondarySystemGroupedBackground)
-    static let rowBackground = Color(.secondarySystemGroupedBackground)
-    #else
-    static let groupedBackground = Color(nsColor: .underPageBackgroundColor)
-    static let cardBackground = Color(nsColor: .controlBackgroundColor)
-    static let rowBackground = Color(nsColor: .controlBackgroundColor)
-    #endif
+    static var groupedBackground: Color { canvas }
+    static var cardBackground: Color { panel }
+    static var rowBackground: Color { panel }
 
-    // 120Hz rule: interruptible springs only; no async-after choreography.
+    // Kinetic Editorial: springs only, entrances that slide-and-settle, breathing accents.
     enum Motion {
         static let snappy = Animation.snappy(duration: 0.25)
-        static let card = Animation.spring(response: 0.35, dampingFraction: 0.82)
-        static let feed = Animation.spring(response: 0.42, dampingFraction: 0.88)
+        static let card = Animation.spring(response: 0.42, dampingFraction: 0.86)
+        static let feed = Animation.spring(response: 0.45, dampingFraction: 0.88)
         static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
     }
 
@@ -34,15 +34,34 @@ enum Theme {
         static let headline = Font.system(.title3, design: .default, weight: .bold)
         static let cardTitle = Font.system(.headline, weight: .semibold)
         static let rowTitle = Font.system(.subheadline, weight: .semibold)
-        static let excerpt = Font.system(.subheadline)
+        static let excerpt = Font.system(.footnote)
         static let meta = Font.system(.caption, weight: .medium)
         static let badge = Font.system(.caption2, weight: .bold)
     }
 }
 
+// MARK: - Kinetic entrance (cards slide up, settle, un-blur — staggered by index)
+
+struct KineticEntrance: ViewModifier {
+    let index: Int
+    @State private var shown = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 26)
+            .blur(radius: shown ? 0 : 5)
+            .onAppear {
+                withAnimation(Theme.Motion.feed.delay(Double(min(index, 8)) * 0.045)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    func kineticEntrance(_ index: Int) -> some View { modifier(KineticEntrance(index: index)) }
+}
+
 // MARK: - Shared components
 
-/// Priority badge — quiet dot in dense contexts, loud capsule in full-bleed.
 struct TierBadge: View {
     let tier: Article.Tier
     var loud = false
@@ -53,9 +72,39 @@ struct TierBadge: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Theme.tierColor(tier), in: Capsule())
                 .foregroundStyle(.white)
+                .shadow(color: Theme.tierColor(tier).opacity(0.6), radius: 6)
         } else {
-            Circle().fill(Theme.tierColor(tier)).frame(width: 7, height: 7)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Theme.tierColor(tier))
+                .frame(width: 4, height: 14)
+                .shadow(color: Theme.tierColor(tier).opacity(0.7), radius: 3)
         }
+    }
+}
+
+/// Band header: "High Priority" pill on a tier-tinted gradient that fades out rightward.
+struct PriorityBand: View {
+    let tier: Article.Tier
+    var trailing: AnyView? = nil
+    private var label: String {
+        switch tier { case .high: "High Priority"; case .medium: "Medium Priority"; case .low: "Low Priority" }
+    }
+    var body: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Capsule().fill(Theme.tierColor(tier)).frame(width: 6, height: 18)
+                    .shadow(color: Theme.tierColor(tier).opacity(0.8), radius: 4)
+                Text(label).font(Theme.Text.cardTitle).foregroundStyle(.primary)
+            }
+            Spacer()
+            if let trailing { trailing }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 9)
+        .background(
+            LinearGradient(colors: [Theme.tierColor(tier).opacity(0.22), .clear],
+                           startPoint: .leading, endPoint: .trailing)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -63,24 +112,41 @@ struct SourceLine: View {
     let article: Article
     var body: some View {
         HStack(spacing: 6) {
-            TierBadge(tier: article.tier)
-            Text(article.sourceName).lineLimit(1)
-            Text("·")
+            Text(article.sourceName)
+                .foregroundStyle(Theme.link)
+                .underline()
+                .lineLimit(1)
+            Spacer(minLength: 8)
             Text(article.publishedAt, format: .relative(presentation: .named))
+                .foregroundStyle(.secondary)
         }
         .font(Theme.Text.meta)
-        .foregroundStyle(.secondary)
     }
 }
 
-/// Press feedback: scale + dim, spring-driven, interruptible.
+/// Glass press feedback: scale + brighten, spring-driven, interruptible.
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.965 : 1)
-            .opacity(configuration.isPressed ? 0.9 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .brightness(configuration.isPressed ? 0.08 : 0)
             .animation(Theme.Motion.press, value: configuration.isPressed)
     }
+}
+
+/// iOS-26-style glass chip/button surface.
+struct GlassSurface: ViewModifier {
+    var prominent = false
+    func body(content: Content) -> some View {
+        content
+            .background(prominent ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(prominent ? 0.25 : 0.10), lineWidth: 1))
+            .shadow(color: prominent ? Theme.accent.opacity(0.45) : .clear, radius: 8, y: 2)
+    }
+}
+
+extension View {
+    func glassChip(prominent: Bool = false) -> some View { modifier(GlassSurface(prominent: prominent)) }
 }
 
 /// Branded fallback when an article image is missing/broken — never a misleading stock photo.
@@ -88,16 +154,16 @@ struct TopicPlaceholder: View {
     let topic: String
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Theme.accent.opacity(0.85), Theme.accent.opacity(0.45)],
+            LinearGradient(colors: [Theme.accent.opacity(0.55), Theme.panel],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Text(topic.capitalized)
                 .font(Theme.Text.badge)
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.85))
         }
     }
 }
 
-// MARK: - Skeleton shimmer
+// MARK: - Skeleton shimmer (glassy)
 
 struct Shimmer: ViewModifier {
     @State private var phase: CGFloat = -1
@@ -105,7 +171,7 @@ struct Shimmer: ViewModifier {
         content
             .overlay(
                 GeometryReader { geo in
-                    LinearGradient(colors: [.clear, .white.opacity(0.35), .clear],
+                    LinearGradient(colors: [.clear, .white.opacity(0.22), .clear],
                                    startPoint: .leading, endPoint: .trailing)
                         .frame(width: geo.size.width * 0.7)
                         .offset(x: phase * geo.size.width * 1.7)
@@ -128,7 +194,8 @@ struct SkeletonBlock: View {
     var radius: CGFloat = 10
     var body: some View {
         RoundedRectangle(cornerRadius: radius)
-            .fill(.quaternary)
+            .fill(.white.opacity(0.06))
+            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.white.opacity(0.05), lineWidth: 1))
             .frame(height: height)
             .shimmer()
     }

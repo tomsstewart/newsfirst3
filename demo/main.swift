@@ -93,13 +93,15 @@ struct SnapList: View {
     var body: some View {
         VStack(spacing: 0) {
             SnapHeader(selected: title, mode: "List", custom: custom)
-            VStack(spacing: 0) {
-                ForEach(Array(articles.prefix(7).enumerated()), id: \.element.id) { i, a in
-                    ListRow(article: a)
-                    if i < min(articles.count, 7) - 1 { Divider().padding(.leading, 16) }
+            VStack(spacing: 10) {
+                ForEach([Article.Tier.high, .medium, .low], id: \.self) { tier in
+                    let items = articles.filter { $0.tier == tier }.prefix(2)
+                    if !items.isEmpty {
+                        PriorityBand(tier: tier)
+                        ForEach(Array(items), id: \.id) { a in ListRow(article: a) }
+                    }
                 }
             }
-            .background(Theme.rowBackground, in: RoundedRectangle(cornerRadius: 14))
             .padding(.horizontal, 12).padding(.top, 6)
             Spacer(minLength: 0)
         }
