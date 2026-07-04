@@ -127,6 +127,7 @@ struct RootView: View {
                             let delta = v.translation.width < 0 ? 1 : -1
                             withAnimation(Theme.Motion.feed, completionCriteria: .logicallyComplete) {
                                 feedDrag = CGFloat(-delta) * w
+                                store.swipeProgress = CGFloat(delta)   // pill glides into the target chip in sync
                             } completion: {
                                 KineticGate.suppressed = true
                                 if store.browse == .sources { store.selectedSource = store.barItem(offset: delta) }
@@ -281,7 +282,8 @@ struct TopicBar: View {
                 .shadow(color: Theme.accent.opacity(0.45), radius: 8, y: 2)
                 .frame(width: wd, height: from.height)
                 .offset(x: x, y: from.minY)
-                .animation(p == 0 ? Theme.Motion.feed : nil, value: current)   // snap with finger; glide on tap
+                // No value-gated animation: finger updates arrive un-animated (instant tracking),
+                // commit/cancel/tap updates arrive inside withAnimation transactions (smooth glide).
         }
     }
 
