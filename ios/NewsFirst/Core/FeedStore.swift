@@ -9,6 +9,11 @@ enum ViewMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum BrowseMode: String, CaseIterable {
+    case topics = "Topics"
+    case sources = "Sources"
+}
+
 enum Appearance: String, CaseIterable, Identifiable {
     case auto = "Auto", light = "Light", dark = "Dark"
     var id: String { rawValue }
@@ -26,11 +31,16 @@ final class FeedStore {
 
     private(set) var articles: [Article] = []                 // whole ranked feed
     private(set) var customResults: [String: [Article]] = [:] // custom topic -> results
+    private(set) var topicExtra: [String: [Article]] = [:]     // sparse preset topic -> targeted fetch
+    private(set) var sourceResults: [String: [Article]] = [:]  // source name -> targeted fetch
     private(set) var loadingCustom: Set<String> = []
     private(set) var isRefreshing = false
     private(set) var hasLoadedOnce = false
 
     var selectedTopic: String = "world"
+    var browse: BrowseMode = .topics
+    var selectedSource: String = ""
+    private(set) var sources: [FeedSource] = []
     var mode: ViewMode = .list
     var reading: Article?                                     // in-app reader presentation
 
@@ -55,16 +65,42 @@ final class FeedStore {
     }
 
     var topicBar: [String] { enabledTopics + customTopics }
+    var sourceBar: [String] { sources.map(\.name) }
+
+    /// Called when a preset topic or source shows empty — targeted server fetch fills it.
+    func backfillIfSparse() async {
+        if browse == .sources {
+            let s = selectedSource
+            guard !s.isEmpty, articles.filter({ $0.sourceName == s }).isEmpty, sourceResults[s] == nil else { return }
+            sourceResults[s] = (try? await api.fetchSource(s)) ?? []
+        } else if !isCustomSelected {
+            let t = selectedTopic
+            guard articles.filter({ $0.topics.contains(t) }).isEmpty, topicExtra[t] == nil else { return }
+            topicExtra[t] = (try? await api.fetchTopic(t)) ?? []
+        }
+    }
+
+    func loadSources() async {
+        guard sources.isEmpty else { return }
+        sources = (try? await api.fetchSources()) ?? []
+        if selectedSource.isEmpty { selectedSource = sources.first?.name ?? "" }
+    }
 
     var isCustomSelected: Bool { customTopics.contains(selectedTopic) }
 
     /// Articles for the selected topic, source-diversity capped.
     var visible: [Article] {
+        if browse == .sources {
+            let local = articles.filter { $0.sourceName == selectedSource }
+            let base = (sourceResults[selectedSource] ?? []).isEmpty ? local : sourceResults[selectedSource]!
+            return base.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) }
+        }
         let base: [Article]
         if isCustomSelected {
             base = customResults[selectedTopic] ?? []
         } else {
-            base = articles.filter { $0.topics.contains(selectedTopic) }
+            let local = articles.filter { $0.topics.contains(selectedTopic) }
+            base = local.isEmpty ? (topicExtra[selectedTopic] ?? []) : local
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
         return diversify(filtered.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) })
@@ -85,7 +121,7 @@ final class FeedStore {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let fresh = try await api.fetchFeed()
+            let fresh = try await api.fetchFeed(limit: 450)
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
         } catch {

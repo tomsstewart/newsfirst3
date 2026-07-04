@@ -149,6 +149,65 @@ struct SnapListExpanded: View {
     }
 }
 
+
+if CommandLine.arguments.contains("--selftest") {
+    Task { @MainActor in
+        var failures = 0
+        func check(_ name: String, _ ok: Bool, _ detail: String) {
+            print("\(ok ? "PASS" : "FAIL")  \(name): \(detail)")
+            if !ok { failures += 1 }
+        }
+        let api = SupabaseAPI()
+        // API 1: feed
+        let all = (try? await api.fetchFeed(limit: 250)) ?? []
+        check("feed API", !all.isEmpty, "\(all.count) articles")
+        // API 2: sources
+        let sources = (try? await api.fetchSources()) ?? []
+        check("sources API", sources.count > 50, "\(sources.count) sources")
+        // API 3: custom search
+        let claude = (try? await api.searchArticles(matching: "claude")) ?? []
+        check("search API (claude)", !claude.isEmpty, "\(claude.count) matches")
+        // Topic population via the real store logic
+        let store = FeedStore()
+        await store.refresh()
+        print("\n— Topic population (store.visible per topic) —")
+        for topic in FeedStore.presetTopics {
+            store.selectedTopic = topic
+            await store.backfillIfSparse()   // same path the app's task runs
+            let n = store.visible.count
+            let tiers = Dictionary(grouping: store.visible, by: \.tier).mapValues(\.count)
+            check("topic \(topic)", n > 0, "\(n) articles (H\(tiers[.high] ?? 0)/M\(tiers[.medium] ?? 0)/L\(tiers[.low] ?? 0))")
+        }
+        // Source browse via the real store logic
+        print("\n— Source population (sources browse mode) —")
+        store.browse = .sources
+        await store.loadSources()
+        var emptySources: [String] = []
+        for s in store.sourceBar {
+            store.selectedSource = s
+            await store.backfillIfSparse()
+            if store.visible.isEmpty { emptySources.append(s) }
+        }
+        check("sources with articles", emptySources.count < store.sourceBar.count / 2,
+              "\(store.sourceBar.count - emptySources.count)/\(store.sourceBar.count) populated; empty: \(emptySources.joined(separator: ", "))")
+        // Custom topic flow via the store
+        store.browse = .topics
+        store.addCustomTopic("tether")
+        try? await Task.sleep(for: .seconds(3))
+        check("custom topic flow (tether)", !(store.customResults["tether"] ?? []).isEmpty,
+              "\(store.customResults["tether"]?.count ?? 0) results")
+        store.removeCustomTopic("tether")
+        // Image proxy reachable
+        if let u = ImageProxy.url(all.first(where: { $0.imageURL != nil })?.imageURL, width: 100) {
+            let ok = (try? await URLSession.shared.data(from: u)) != nil
+            check("image proxy", ok, u.host() ?? "")
+        }
+        print("\n\(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")")
+        exit(failures == 0 ? 0 : 1)
+    }
+    RunLoop.main.run()
+}
+
 if CommandLine.arguments.contains("--snapshot") {
     Task { @MainActor in
         do {

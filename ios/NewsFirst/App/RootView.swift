@@ -23,9 +23,12 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
-        .preferredColorScheme(store.appearance.scheme)
+        .preferredColorScheme(store.appearance.scheme ?? .dark)   // Midnight Glass has no light palette yet — Auto means dark
         .sheet(item: $store.reading) { ReaderSheet(article: $0) }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
+            await store.backfillIfSparse()
+        }
         .task {
             // Splash holds only as long as the cache load needs — never a fixed timer.
             try? await Task.sleep(for: .milliseconds(650))
@@ -35,8 +38,25 @@ struct RootView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text("NewsFirst")
-                .font(Theme.Text.headline)
+            Button {
+                withAnimation(Theme.Motion.card) {
+                    store.browse = store.browse == .topics ? .sources : .topics
+                }
+                if store.browse == .sources { Task { await store.loadSources() } }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
+                        .font(.caption2.bold())
+                    Text(store.browse.rawValue.uppercased())
+                        .font(Theme.Text.badge)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .foregroundStyle(.white)
+                .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
+            }
+            .buttonStyle(PressableStyle())
             Spacer()
             Picker("View", selection: Binding(
                 get: { store.mode },
@@ -75,7 +95,7 @@ struct RootView: View {
                     case .full: FullFeedView()
                     }
                 }
-                .id("\(store.mode.rawValue)-\(store.selectedTopic)")   // replay kinetic entrances per topic/mode
+                .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.selectedTopic)-\(store.selectedSource)")   // replay kinetic entrances per topic/mode
                 .transition(.asymmetric(
                     insertion: .move(edge: swipeDirection).combined(with: .opacity),
                     removal: .opacity))
@@ -83,6 +103,8 @@ struct RootView: View {
         }
         .animation(Theme.Motion.feed, value: store.mode)
         .animation(Theme.Motion.feed, value: store.selectedTopic)
+        .animation(Theme.Motion.feed, value: store.selectedSource)
+        .animation(Theme.Motion.feed, value: store.browse)
         .animation(Theme.Motion.feed, value: store.isLoadingSelected)
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
@@ -96,10 +118,16 @@ struct RootView: View {
 
     /// Swipe left/right anywhere on the feed pages through the topic bar.
     private func stepTopic(_ delta: Int) {
+        swipeDirection = delta > 0 ? .trailing : .leading
+        if store.browse == .sources {
+            let bar = store.sourceBar
+            guard let idx = bar.firstIndex(of: store.selectedSource), !bar.isEmpty else { return }
+            withAnimation(Theme.Motion.feed) { store.selectedSource = bar[(idx + delta + bar.count) % bar.count] }
+            return
+        }
         let bar = store.topicBar
         guard let idx = bar.firstIndex(of: store.selectedTopic) else { return }
         let next = (idx + delta + bar.count) % bar.count
-        swipeDirection = delta > 0 ? .trailing : .leading
         withAnimation(Theme.Motion.feed) { store.selectedTopic = bar[next] }
         if store.customTopics.contains(bar[next]) { Task { await store.loadCustom(bar[next]) } }
     }
@@ -116,14 +144,17 @@ struct TopicBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(store.topicBar, id: \.self) { topic in
-                    chip(topic)
+                if store.browse == .topics {
+                    ForEach(store.topicBar, id: \.self) { topic in chip(topic) }
+                    addChip
+                } else {
+                    ForEach(store.sourceBar, id: \.self) { source in sourceChip(source) }
                 }
-                addChip
             }
             .padding(.horizontal, 16)
         }
         .scrollClipDisabled()
+        .task { if store.browse == .sources { await store.loadSources() } }
     }
 
     private func chip(_ topic: String) -> some View {
@@ -143,6 +174,7 @@ struct TopicBar: View {
             .padding(.horizontal, 14).padding(.vertical, 8)
             .glassChip(prominent: selected)
             .foregroundStyle(selected ? .white : .secondary)
+            .animation(nil, value: store.selectedTopic)   // color/material swap must not tween (B/W flash)
         }
         .buttonStyle(PressableStyle())
         .contextMenu {
@@ -152,6 +184,22 @@ struct TopicBar: View {
                 }
             }
         }
+    }
+
+    private func sourceChip(_ source: String) -> some View {
+        let selected = store.selectedSource == source
+        return Button {
+            withAnimation(Theme.Motion.snappy) { store.selectedSource = source }
+        } label: {
+            Text(source)
+                .font(Theme.Text.meta)
+                .lineLimit(1)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .glassChip(prominent: selected)
+                .foregroundStyle(selected ? .white : .secondary)
+                .animation(nil, value: store.selectedSource)
+        }
+        .buttonStyle(PressableStyle())
     }
 
     @ViewBuilder private var addChip: some View {

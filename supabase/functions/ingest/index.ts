@@ -85,7 +85,8 @@ export function parseFeed(xml: string): { title: string; link: string; pubDate?:
     const image =
       b.match(/<media:content[^>]*url="([^"]+)"/i)?.[1] ??
       b.match(/<media:thumbnail[^>]*url="([^"]+)"/i)?.[1] ??
-      b.match(/<enclosure[^>]*url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)?.[1];
+      b.match(/<enclosure[^>]*url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)?.[1] ??
+      b.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i)?.[1];   // e.g. The Verge: image only in description HTML
     items.push({ title, link, pubDate: tag("pubDate") ?? tag("published") ?? tag("dc:date"), description: tag("description") ?? tag("summary"), image });
   }
   return items;
@@ -247,6 +248,15 @@ async function ingestTick(env: Env): Promise<void> {
 
 async function healthWatchdog(env: Env): Promise<void> {
   const db = sb(env);
+  // Image rescue: OG-fetch up to 15 recent imageless articles per hour.
+  const recent = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  const imageless = await db.get<{ id: string; url: string }[]>(
+    `articles?image_url=is.null&published_at=gt.${recent}&select=id,url&order=published_at.desc&limit=15`,
+  ).catch(() => [] as { id: string; url: string }[]);
+  for (const a of imageless) {
+    const img = await ogImage(a.url);
+    if (img) await db.patch(`articles?id=eq.${a.id}`, { image_url: img, image_status: "ok" }).catch(() => {});
+  }
   const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
   const stale = await db.get<Source[]>(`sources?is_enabled=eq.true&health=neq.broken&last_success_at=lt.${cutoff}&select=id,name`);
   for (const s of stale) await db.patch(`sources?id=eq.${s.id}`, { health: "broken" });

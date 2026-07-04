@@ -19,6 +19,25 @@ struct SupabaseAPI {
         ])
     }
 
+    /// Sparse-topic / source-browse fallbacks: targeted server queries against the same view.
+    func fetchTopic(_ topic: String, limit: Int = 60) async throws -> [Article] {
+        try await get([
+            .init(name: "topics", value: "cs.{\(topic)}"),
+            .init(name: "select", value: Self.fields),
+            .init(name: "order", value: "score.desc,published_at.desc"),
+            .init(name: "limit", value: String(limit)),
+        ])
+    }
+
+    func fetchSource(_ name: String, limit: Int = 60) async throws -> [Article] {
+        try await get([
+            .init(name: "source_name", value: "eq.\(name)"),
+            .init(name: "select", value: Self.fields),
+            .init(name: "order", value: "published_at.desc"),
+            .init(name: "limit", value: String(limit)),
+        ])
+    }
+
     /// Custom topic = keyword search across title/excerpt (server-side), ranked as usual.
     func searchArticles(matching query: String, limit: Int = 80) async throws -> [Article] {
         let q = query.replacingOccurrences(of: ",", with: " ").trimmingCharacters(in: .whitespaces)
