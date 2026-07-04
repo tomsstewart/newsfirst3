@@ -19,6 +19,38 @@ struct ArticleImage: View {
     }
 }
 
+
+/// AI overview of the topic's day — generated server-side once daily.
+struct BriefCard: View {
+    @Environment(FeedStore.self) private var store
+    var body: some View {
+        if store.browse == .topics, !store.isCustomSelected,
+           let brief = store.briefs[store.selectedTopic] {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.caption.bold())
+                        .foregroundStyle(Theme.accent)
+                    Text("TODAY'S OVERVIEW")
+                        .font(Theme.Text.badge)
+                        .foregroundStyle(.secondary)
+                        .kerning(0.8)
+                }
+                Text(brief)
+                    .font(Theme.Text.excerpt)
+                    .foregroundStyle(.primary.opacity(0.92))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Theme.accent.opacity(0.10))
+            .background(Theme.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.accent.opacity(0.25), lineWidth: 1))
+        }
+    }
+}
+
 // MARK: - LIST: priority bands + dense rows; tap = morph-expand in place, tap again = shrink back
 
 struct ListFeedView: View {
@@ -38,6 +70,7 @@ struct ListFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
+                BriefCard().kineticEntrance(0)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
                         .kineticEntrance(bandIndex * 3)
@@ -223,6 +256,7 @@ struct ImmersiveFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
+                BriefCard().kineticEntrance(0)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     PriorityBand(tier: band.tier)
                         .kineticEntrance(bandIndex * 3)

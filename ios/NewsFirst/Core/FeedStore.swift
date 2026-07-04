@@ -33,6 +33,7 @@ final class FeedStore {
     private(set) var customResults: [String: [Article]] = [:] // custom topic -> results
     private(set) var topicExtra: [String: [Article]] = [:]     // sparse preset topic -> targeted fetch
     private(set) var sourceResults: [String: [Article]] = [:]  // source name -> targeted fetch
+    private(set) var briefs: [String: String] = [:]             // topic -> latest AI overview
     private(set) var loadingCustom: Set<String> = []
     private(set) var isRefreshing = false
     private(set) var hasLoadedOnce = false
@@ -204,6 +205,7 @@ final class FeedStore {
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
             prefetchImages()
+            briefs = (try? await api.fetchBriefs()) ?? briefs
         } catch {
             hasLoadedOnce = true   // keep cache on screen; never a blocking error
         }

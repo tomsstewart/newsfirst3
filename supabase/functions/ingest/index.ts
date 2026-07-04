@@ -289,6 +289,41 @@ async function enrichBackfill(env: Env): Promise<number> {
   return patched;
 }
 
+
+/// AI overview: ONE Gemini call/day writes a 2-3 sentence brief per topic (quota: 20/day).
+async function generateBriefs(env: Env): Promise<number> {
+  const db = sb(env);
+  const topics = ["world", "business", "economics", "tech", "ai", "science", "sports", "crypto", "gaming", "entertainment", "space", "climate", "health", "travel"];
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const rows = await db.get<{ title: string; topics: string[] }[]>(
+    `articles?published_at=gt.${since}&select=title,topics&order=base_score.desc&limit=400`,
+  );
+  const byTopic: Record<string, string[]> = {};
+  for (const r of rows) for (const tp of r.topics ?? []) {
+    if (topics.includes(tp) && (byTopic[tp] ??= []).length < 12) byTopic[tp].push(r.title);
+  }
+  const withNews = topics.filter((tp) => (byTopic[tp] ?? []).length >= 3);
+  if (!withNews.length) return 0;
+  const prompt = `You write NewsFirst's daily topic briefs. For each topic below, write a tight 2-3 sentence overview of the day from its headlines: lead with the most important development, neutral tone, no hedging, no "headlines suggest". Return ONLY a JSON object mapping topic slug -> brief string.
+${withNews.map((tp) => `## ${tp}\n${byTopic[tp].join("\n")}`).join("\n\n")}`;
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${env.GEMINI_API_KEY}`,
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } }) },
+    );
+    if (!r.ok) throw new Error(`gemini ${r.status}`);
+    const j: any = await r.json();
+    const map = JSON.parse(j.candidates[0].content.parts[0].text) as Record<string, string>;
+    const today = new Date().toISOString().slice(0, 10);
+    const payload = Object.entries(map)
+      .filter(([tp, c]) => withNews.includes(tp) && typeof c === "string" && c.length > 30)
+      .map(([tp, c]) => ({ topic: tp, brief_date: today, content: c }));
+    if (payload.length) await db.post("briefs?on_conflict=topic,brief_date", payload, "resolution=merge-duplicates,return=minimal");
+    return payload.length;
+  } catch { return -1; }
+}
+
 Deno.serve(async (req: Request) => {
   const env: Env = {
     SUPABASE_URL: Deno.env.get("SUPABASE_URL")!,
@@ -309,6 +344,7 @@ Deno.serve(async (req: Request) => {
   let detail: unknown = null;
   if (task === "watchdog") await healthWatchdog(env);
   else if (task === "enrich_backfill") detail = await enrichBackfill(env);
+  else if (task === "briefs") detail = await generateBriefs(env);
   else await ingestTick(env);
   return new Response(JSON.stringify({ ok: true, task, detail }), { headers: { "Content-Type": "application/json" } });
 });

@@ -51,6 +51,20 @@ struct SupabaseAPI {
         ])
     }
 
+    func fetchBriefs() async throws -> [String: String] {
+        var comps = URLComponents(url: Self.projectURL.appending(path: "rest/v1/briefs"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [
+            .init(name: "select", value: "topic,content,brief_date"),
+            .init(name: "order", value: "brief_date.desc"),
+            .init(name: "limit", value: "40"),
+        ]
+        struct Row: Codable { let topic: String; let content: String }
+        let rows: [Row] = try await request(comps.url!)
+        var out: [String: String] = [:]
+        for r in rows where out[r.topic] == nil { out[r.topic] = r.content }   // newest wins
+        return out
+    }
+
     func fetchSources() async throws -> [FeedSource] {
         var comps = URLComponents(url: Self.projectURL.appending(path: "rest/v1/sources"), resolvingAgainstBaseURL: false)!
         comps.queryItems = [
