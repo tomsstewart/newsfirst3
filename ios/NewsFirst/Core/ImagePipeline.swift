@@ -36,6 +36,12 @@ struct CachedImage: View {
     @State private var image: CGImage?
     @State private var failed = false
 
+    init(url: URL, topicFallback: String) {
+        self.url = url
+        self.topicFallback = topicFallback
+        _image = State(initialValue: ImagePipeline.cached(url))   // sync hit → part of the pane from frame 1
+    }
+
     var body: some View {
         Group {
             if let image {

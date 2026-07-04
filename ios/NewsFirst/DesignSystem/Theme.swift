@@ -24,8 +24,8 @@ enum Theme {
     // Kinetic Editorial: springs only, entrances that slide-and-settle, breathing accents.
     enum Motion {
         static let snappy = Animation.snappy(duration: 0.25)
-        static let card = Animation.spring(response: 0.42, dampingFraction: 0.86)
-        static let feed = Animation.spring(response: 0.45, dampingFraction: 0.88)
+        static let card = Animation.smooth(duration: 0.32)
+        static let feed = Animation.smooth(duration: 0.38)
         static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
         static let expand = Animation.easeInOut(duration: 0.30)   // v2.5 LayoutAnimation.easeInEaseOut
     }
@@ -53,13 +53,12 @@ struct KineticEntrance: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 26)
-            .blur(radius: shown ? 0 : 5)
+            .offset(y: shown ? 0 : 18)
             .onAppear {
                 if KineticGate.suppressed {
                     shown = true
                 } else {
-                    withAnimation(Theme.Motion.feed.delay(Double(min(index, 8)) * 0.045)) { shown = true }
+                    withAnimation(Theme.Motion.feed.delay(Double(min(index, 8)) * 0.04)) { shown = true }
                 }
             }
     }

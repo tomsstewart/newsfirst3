@@ -121,6 +121,7 @@ struct RootView: View {
                                 else { store.selectedTopic = store.barItem(offset: delta) }
                                 let landed = store.barItem(offset: 0)
                                 if store.customTopics.contains(landed) { Task { await store.loadCustom(landed) } }
+                                store.prefetchImages()
                                 feedDrag = 0
                             }
                         } else {

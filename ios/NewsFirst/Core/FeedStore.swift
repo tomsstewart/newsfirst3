@@ -82,6 +82,20 @@ final class FeedStore {
         }
     }
 
+    /// Warm the image cache for the current and neighbouring columns so entrances
+    /// and swipes render complete panes — pictures move with the pane, never pop in after.
+    func prefetchImages() {
+        let targets = [visibleAt(offset: 0).prefix(10), visibleAt(offset: 1).prefix(8), visibleAt(offset: -1).prefix(8)]
+            .flatMap { $0 }
+        Task.detached(priority: .utility) {
+            for a in targets {
+                for w in [220, 800] {
+                    if let u = ImageProxy.url(a.imageURL, width: w) { _ = await ImagePipeline.load(u) }
+                }
+            }
+        }
+    }
+
     func loadSources() async {
         guard sources.isEmpty else { return }
         sources = (try? await api.fetchSources()) ?? []
@@ -170,6 +184,7 @@ final class FeedStore {
             let fresh = try await api.fetchFeed(limit: 450)
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
+            prefetchImages()
         } catch {
             hasLoadedOnce = true   // keep cache on screen; never a blocking error
         }

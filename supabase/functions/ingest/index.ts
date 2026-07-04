@@ -216,7 +216,7 @@ async function ingestTick(env: Env): Promise<void> {
       }
       if (candidates.length) {
         // Bounded OG-image rescue for imageless items (v2 did this unbounded — that burned compute)
-        let ogBudget = 5;
+        let ogBudget = 8;
         for (const c of candidates) {
           if (!c.image_url && ogBudget > 0) { ogBudget--; c.image_url = await ogImage(c.url); if (c.image_url) c.image_status = "ok"; }
         }
@@ -248,14 +248,15 @@ async function ingestTick(env: Env): Promise<void> {
 
 async function healthWatchdog(env: Env): Promise<void> {
   const db = sb(env);
-  // Image rescue: OG-fetch up to 15 recent imageless articles per hour.
-  const recent = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  // Image rescue: OG-fetch recent imageless articles (cron hourly; callable ad hoc).
+  const recent = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const imageless = await db.get<{ id: string; url: string }[]>(
-    `articles?image_url=is.null&published_at=gt.${recent}&select=id,url&order=published_at.desc&limit=15`,
+    `articles?image_url=is.null&image_status=neq.none&published_at=gt.${recent}&select=id,url&order=published_at.desc&limit=40`,
   ).catch(() => [] as { id: string; url: string }[]);
   for (const a of imageless) {
     const img = await ogImage(a.url);
     if (img) await db.patch(`articles?id=eq.${a.id}`, { image_url: img, image_status: "ok" }).catch(() => {});
+    else await db.patch(`articles?id=eq.${a.id}`, { image_status: "none" }).catch(() => {});   // stop retrying hopeless ones
   }
   const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
   const stale = await db.get<Source[]>(`sources?is_enabled=eq.true&health=neq.broken&last_success_at=lt.${cutoff}&select=id,name`);
