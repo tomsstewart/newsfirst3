@@ -26,7 +26,7 @@ struct RootView: View {
             }
             if showSplash {
                 SplashView()
-                    .transition(.opacity.combined(with: .scale(scale: 1.04)))
+                    .transition(.opacity)
                     .zIndex(1)
             }
         }
@@ -45,8 +45,8 @@ struct RootView: View {
         }
         .task {
             // Splash holds only as long as the cache load needs — never a fixed timer.
-            try? await Task.sleep(for: .milliseconds(650))
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { showSplash = false }
+            try? await Task.sleep(for: .milliseconds(950))   // let the fly-in settle
+            withAnimation(.easeOut(duration: 0.4)) { showSplash = false }
         }
     }
 
@@ -434,28 +434,33 @@ struct ChipFramesKey: PreferenceKey {
     }
 }
 
-// MARK: - Pulsing splash (v2's signature carried forward)
+// MARK: - Splash — v2.5's converging fly-in: "News" from above, "First" from below,
+// spring-settling into one wordmark (damping 15 / stiffness 120 ≈ response .57, fraction .7).
 
 struct SplashView: View {
-    @State private var pulse = false
+    @State private var settled = false
 
     var body: some View {
-        ZStack {
-            Theme.groupedBackground.ignoresSafeArea()
-            VStack(spacing: 14) {
-                Text("NewsFirst")
-                    .font(.system(size: 40, weight: .heavy, design: .default))
-                    .foregroundStyle(Theme.accent)
-                    .scaleEffect(pulse ? 1.06 : 0.97)
-                    .opacity(pulse ? 1 : 0.75)
-                Text("Be first to know")
-                    .font(Theme.Text.meta)
-                    .foregroundStyle(.secondary)
-                    .opacity(pulse ? 0.9 : 0.4)
+        GeometryReader { geo in
+            ZStack {
+                Theme.canvas.ignoresSafeArea()
+                HStack(spacing: 0) {
+                    Text("News")
+                        .offset(y: settled ? 0 : -geo.size.height / 2)
+                        .scaleEffect(settled ? 1 : 0.01)
+                    Text("First")
+                        .offset(y: settled ? 0 : geo.size.height / 2)
+                        .scaleEffect(settled ? 1 : 0.01)
+                }
+                .font(.system(size: 48, weight: .black))
+                .kerning(-1)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .ignoresSafeArea()
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { pulse = true }
+            withAnimation(.spring(response: 0.57, dampingFraction: 0.7)) { settled = true }
         }
     }
 }
