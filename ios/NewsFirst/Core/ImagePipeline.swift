@@ -8,7 +8,8 @@ import SwiftUI
 enum ImagePipeline {
     nonisolated(unsafe) static var preloaded: [URL: CGImage] = [:]
 
-    private static let cache: NSCache<NSURL, CacheBox> = {
+    // NSCache is documented thread-safe; Swift 6 cannot see that.
+    nonisolated(unsafe) private static let cache: NSCache<NSURL, CacheBox> = {
         let c = NSCache<NSURL, CacheBox>()
         c.countLimit = 400
         return c
