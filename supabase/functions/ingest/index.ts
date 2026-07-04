@@ -24,7 +24,7 @@ interface Source {
 
 interface Item {
   url: string; url_hash: string; title: string; excerpt: string | null;
-  image_url: string | null; published_at: string; source_id: string;
+  image_url: string | null; image_status?: string; published_at: string; source_id: string;
   topics: string[]; entities: string[]; regions: string[];
   base_score: number; score_breakdown: Record<string, number>; lang: string | null;
 }
@@ -111,7 +111,9 @@ async function sha256(s: string): Promise<string> {
 }
 
 // ---------- Gemini enrichment (batched; free tier) ----------
-async function enrich(env: Env, items: { title: string; excerpt: string | null }[]): Promise<{ topics: string[]; entities: string[]; regions: string[] }[]> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[] }[]> {
   if (items.length === 0) return [];
   const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
 {"topics": [1-3 slugs from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming],
@@ -126,6 +128,10 @@ Return ONLY the JSON array.`;
       { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }) },
     );
+    if (r.status === 429 && attempt < 2) {   // free tier is 15 RPM — wait out the window
+      await sleep(4000 * (attempt + 1));
+      return enrichChunk(env, items, attempt + 1);
+    }
     if (!r.ok) throw new Error(`gemini ${r.status}`);
     const j: any = await r.json();
     const arr = JSON.parse(j.candidates[0].content.parts[0].text);
@@ -135,6 +141,18 @@ Return ONLY the JSON array.`;
     // Enrichment is an enhancement, not a dependency — fall back to source category only.
     return items.map(() => ({ topics: [], entities: [], regions: [] }));
   }
+}
+
+async function ogImage(pageUrl: string): Promise<string | null> {
+  try {
+    const r = await fetch(pageUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }, redirect: "follow", signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const head = (await r.text()).slice(0, 120_000);
+    const m = head.match(/<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i) ??
+              head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i) ??
+              head.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+    return m ? m[1] : null;
+  } catch { return null; }
 }
 
 // ---------- health / auto-fix ladder ----------
@@ -196,12 +214,13 @@ async function ingestTick(env: Env): Promise<void> {
         });
       }
       if (candidates.length) {
-        const meta = await enrich(env, candidates);
-        meta.forEach((m, i) => {
-          candidates[i].topics = [...new Set([...candidates[i].topics, ...m.topics])];
-          candidates[i].entities = m.entities;
-          candidates[i].regions = [...new Set([...candidates[i].regions, ...m.regions])];
-        });
+        // Bounded OG-image rescue for imageless items (v2 did this unbounded — that burned compute)
+        let ogBudget = 5;
+        for (const c of candidates) {
+          if (!c.image_url && ogBudget > 0) { ogBudget--; c.image_url = await ogImage(c.url); if (c.image_url) c.image_status = "ok"; }
+        }
+        // No inline AI here: Gemini free tier is 20 req/DAY — enrichment runs as the
+        // scheduled enrich_backfill batch (1 call of 100 headlines / 2h) instead.
         await db.post("articles?on_conflict=url_hash", candidates, "resolution=ignore-duplicates,return=minimal");
         inserted += candidates.length;
       }
@@ -236,6 +255,29 @@ async function healthWatchdog(env: Env): Promise<void> {
   // TODO(phase 4): digest generation at each user's digest_hour.
 }
 
+
+async function enrichBackfill(env: Env): Promise<number> {
+  const db = sb(env);
+  const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+  const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
+    `articles?published_at=gt.${since}&select=id,title,excerpt,topics&order=published_at.desc&limit=500`,
+  );
+  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1).slice(0, 100);
+  if (!thin.length) return 0;
+  const meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation (quota: 20/day)
+  let patched = 0;
+  for (let i = 0; i < thin.length; i++) {
+    const m = meta[i];
+    if (!m.topics.length && !m.entities.length) continue;
+    await db.patch(`articles?id=eq.${thin[i].id}`, {
+      topics: [...new Set([...((thin[i] as any).topics ?? []), ...m.topics])],
+      entities: m.entities, regions: m.regions,
+    }).catch(() => {});
+    patched++;
+  }
+  return patched;
+}
+
 Deno.serve(async (req: Request) => {
   const env: Env = {
     SUPABASE_URL: Deno.env.get("SUPABASE_URL")!,
@@ -253,7 +295,9 @@ Deno.serve(async (req: Request) => {
     return new Response("forbidden", { status: 403 });
   }
   const task = new URL(req.url).searchParams.get("task") ?? "ingest";
+  let detail: unknown = null;
   if (task === "watchdog") await healthWatchdog(env);
+  else if (task === "enrich_backfill") detail = await enrichBackfill(env);
   else await ingestTick(env);
-  return new Response(JSON.stringify({ ok: true, task }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, task, detail }), { headers: { "Content-Type": "application/json" } });
 });
