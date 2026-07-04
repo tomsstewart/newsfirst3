@@ -8,12 +8,13 @@ import SafariServices
 /// content blockers — the platform-blessed in-app browser). macOS demo: WKWebView sheet.
 struct ReaderSheet: View {
     let article: Article
+    @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         #if os(iOS)
         ZStack(alignment: .topTrailing) {
-            SafariView(url: article.url)
+            SafariView(url: article.url, readerMode: store.readerMode)
                 .ignoresSafeArea()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
@@ -47,9 +48,10 @@ struct ReaderSheet: View {
 #if os(iOS)
 struct SafariView: UIViewControllerRepresentable {
     let url: URL
+    var readerMode = true
     func makeUIViewController(context: Context) -> SFSafariViewController {
         let config = SFSafariViewController.Configuration()
-        config.entersReaderIfAvailable = true       // v2's "Reader View" setting, honored by default
+        config.entersReaderIfAvailable = readerMode   // Settings → "Open in Reader"
         let vc = SFSafariViewController(url: url, configuration: config)
         vc.preferredControlTintColor = UIColor(Theme.accent)
         return vc

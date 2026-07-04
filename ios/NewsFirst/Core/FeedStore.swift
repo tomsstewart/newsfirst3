@@ -50,6 +50,7 @@ final class FeedStore {
     var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources") } }
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
+    var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
     private let api = SupabaseAPI()
@@ -62,6 +63,7 @@ final class FeedStore {
         disabledSources = Set(defaults.stringArray(forKey: "disabledSources") ?? [])
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .auto
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
+        readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         mode = defaultMode
     }

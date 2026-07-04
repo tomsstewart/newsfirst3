@@ -37,7 +37,7 @@ struct ListFeedView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 13) {
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
                         .kineticEntrance(bandIndex * 3)
@@ -49,7 +49,7 @@ struct ListFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 20)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
@@ -212,19 +212,33 @@ struct ListRow: View {
 struct ImmersiveFeedView: View {
     @Environment(FeedStore.self) private var store
     let items: [Article]
+    @State private var lowHidden = false
+
+    private var bands: [(tier: Article.Tier, items: [Article])] {
+        [Article.Tier.high, .medium, .low].compactMap { tier in
+            let tierItems = items.filter { $0.tier == tier }
+            return tierItems.isEmpty ? nil : (tier, tierItems)
+        }
+    }
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, article in
-                    Button { store.reading = article } label: {
-                        ImmersiveCard(article: article, hero: index == 0)
+            LazyVStack(spacing: 13) {
+                ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
+                    PriorityBand(tier: band.tier)
+                        .kineticEntrance(bandIndex * 3)
+                    if !(band.tier == .low && lowHidden) {
+                        ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
+                            Button { store.reading = article } label: {
+                                ImmersiveCard(article: article, hero: bandIndex == 0 && i == 0)
+                            }
+                            .buttonStyle(PressableStyle())
+                            .kineticEntrance(bandIndex * 3 + i + 1)
+                        }
                     }
-                    .buttonStyle(PressableStyle())
-                    .kineticEntrance(index)
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 20)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)

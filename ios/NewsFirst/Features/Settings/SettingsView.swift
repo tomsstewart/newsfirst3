@@ -18,11 +18,11 @@ struct SettingsView: View {
                         HStack(spacing: 8) {
                             ForEach(Appearance.allCases) { a in
                                 let selected = store.appearance == a
-                                let enabled = a != .light   // light palette lands with the design pass
+                                let enabled = true
                                 Button {
                                     withAnimation(Theme.Motion.snappy) { store.appearance = a }
                                 } label: {
-                                    Text(a == .light ? "Light · soon" : a.rawValue)
+                                    Text(a.rawValue)
                                         .font(Theme.Text.meta)
                                         .padding(.horizontal, 14).padding(.vertical, 8)
                                         .glassChip(prominent: selected)
@@ -78,7 +78,7 @@ struct SettingsView: View {
                                             .font(.caption2.bold())
                                             .foregroundStyle(.secondary)
                                             .padding(7)
-                                            .background(.white.opacity(0.06), in: Circle())
+                                            .background(.primary.opacity(0.06), in: Circle())
                                     }
                                     .buttonStyle(PressableStyle())
                                 }
@@ -88,7 +88,7 @@ struct SettingsView: View {
                                     .textFieldStyle(.plain)
                                     .font(Theme.Text.rowTitle)
                                     .padding(.horizontal, 14).padding(.vertical, 9)
-                                    .background(.white.opacity(0.05), in: Capsule())
+                                    .background(.primary.opacity(0.05), in: Capsule())
                                     .overlay(Capsule().strokeBorder(Theme.panelBorder, lineWidth: 1))
                                     .onSubmit(addTopic)
                                 Button(action: addTopic) {
@@ -123,7 +123,7 @@ struct SettingsView: View {
                                             Text(source.category.capitalized)
                                                 .font(Theme.Text.badge)
                                                 .padding(.horizontal, 7).padding(.vertical, 2)
-                                                .background(.white.opacity(0.07), in: Capsule())
+                                                .background(.primary.opacity(0.07), in: Capsule())
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
@@ -133,6 +133,18 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                    }
+
+                    section("Reading", icon: "doc.plaintext") {
+                        Toggle(isOn: $store.readerMode) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Open in Reader").font(Theme.Text.rowTitle)
+                                Text("Distraction-free article view when available.")
+                                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(Theme.accent)
                     }
 
                     section("Developer", icon: "wrench.and.screwdriver") {

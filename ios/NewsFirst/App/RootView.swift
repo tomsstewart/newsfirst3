@@ -23,7 +23,7 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
-        .preferredColorScheme(store.appearance.scheme ?? .dark)   // Midnight Glass has no light palette yet — Auto means dark
+        .preferredColorScheme(store.appearance.scheme)
         #if os(iOS)
         .fullScreenCover(item: $store.reading) { ReaderSheet(article: $0) }
         #else
@@ -61,6 +61,10 @@ struct RootView: View {
                 .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
             }
             .buttonStyle(PressableStyle())
+            Spacer()
+            Text("NewsFirst")
+                .font(.system(size: 21, weight: .heavy))
+                .foregroundStyle(Theme.brandGradient)
             Spacer()
             Picker("View", selection: Binding(
                 get: { store.mode },
@@ -171,6 +175,7 @@ struct RootView: View {
 
 struct TopicBar: View {
     @Environment(FeedStore.self) private var store
+    @Namespace private var chipSelection
     @State private var addingTopic = false
     @State private var draft = ""
     @FocusState private var draftFocused: Bool
@@ -219,9 +224,17 @@ struct TopicBar: View {
             }
             .font(Theme.Text.meta)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .glassChip(prominent: selected)
+            .background {
+                if selected {
+                    Capsule().fill(Theme.selectionGradient)
+                        .shadow(color: Theme.accentPink.opacity(0.4), radius: 8, y: 2)
+                        .matchedGeometryEffect(id: "chip-sel", in: chipSelection)   // glides between chips
+                }
+            }
+            .background(Theme.panel, in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder, lineWidth: 1))
             .foregroundStyle(selected ? .white : .secondary)
-            .animation(nil, value: store.selectedTopic)   // color/material swap must not tween (B/W flash)
+            .animation(Theme.Motion.feed, value: store.selectedTopic)
         }
         .buttonStyle(PressableStyle())
         .contextMenu {
@@ -261,9 +274,17 @@ struct TopicBar: View {
                 .font(Theme.Text.meta)
                 .lineLimit(1)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .glassChip(prominent: selected)
+                .background {
+                    if selected {
+                        Capsule().fill(Theme.selectionGradient)
+                            .shadow(color: Theme.accentPink.opacity(0.4), radius: 8, y: 2)
+                            .matchedGeometryEffect(id: "chip-sel", in: chipSelection)
+                    }
+                }
+                .background(Theme.panel, in: Capsule())
+                .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder, lineWidth: 1))
                 .foregroundStyle(selected ? .white : .secondary)
-                .animation(nil, value: store.selectedSource)
+                .animation(Theme.Motion.feed, value: store.selectedSource)
         }
         .buttonStyle(PressableStyle())
     }
