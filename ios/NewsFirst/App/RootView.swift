@@ -5,6 +5,8 @@ struct RootView: View {
     @Environment(FeedStore.self) private var store
     @State private var showSettings = false
     @State private var showSplash = true
+    @State private var showAuth = false
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     var body: some View {
         @Bindable var store = store
@@ -17,6 +19,11 @@ struct RootView: View {
             }
             .background(Theme.groupedBackground)
 
+            if !hasOnboarded && !showSplash {
+                OnboardingView(done: $hasOnboarded)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
             if showSplash {
                 SplashView()
                     .transition(.opacity.combined(with: .scale(scale: 1.04)))
@@ -30,6 +37,9 @@ struct RootView: View {
         .sheet(item: $store.reading) { ReaderSheet(article: $0) }
         #endif
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showAuth) { AuthView() }
+        .environment(\.openAuth, { showAuth = true })
+        .onAppear { Analytics.capture("app_open") }
         .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
             await store.backfillIfSparse()
         }
@@ -168,11 +178,16 @@ struct RootView: View {
     }
 }
 
+extension EnvironmentValues {
+    @Entry var openAuth: () -> Void = {}
+}
+
 // MARK: - Topic chips (the spine of the product)
 
 struct TopicBar: View {
     @Environment(FeedStore.self) private var store
     @Namespace private var chipSelection
+    @State private var draggedTopic: String?
     @State private var addingTopic = false
     @State private var draft = ""
     @FocusState private var draftFocused: Bool
@@ -234,6 +249,11 @@ struct TopicBar: View {
             .animation(Theme.Motion.feed, value: store.selectedTopic)
         }
         .buttonStyle(PressableStyle())
+        .onDrag {
+            draggedTopic = topic
+            return NSItemProvider(object: topic as NSString)
+        }
+        .onDrop(of: [.text], delegate: ChipDropDelegate(item: topic, dragged: $draggedTopic, store: store))
         .contextMenu {
             if custom {
                 Button(role: .destructive) { store.removeCustomTopic(topic) } label: {
@@ -318,6 +338,24 @@ struct TopicBar: View {
             .buttonStyle(PressableStyle())
         }
     }
+}
+
+/// Click-and-drag a chip onto another to reorder your topic bar (persisted).
+struct ChipDropDelegate: DropDelegate {
+    let item: String
+    @Binding var dragged: String?
+    let store: FeedStore
+
+    func dropEntered(info: DropInfo) {
+        guard let dragged, dragged != item,
+              let from = store.enabledTopics.firstIndex(of: dragged),
+              let to = store.enabledTopics.firstIndex(of: item) else { return }
+        withAnimation(Theme.Motion.snappy) {
+            store.enabledTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+    }
+    func performDrop(info: DropInfo) -> Bool { dragged = nil; return true }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
 }
 
 // MARK: - Pulsing splash (v2's signature carried forward)

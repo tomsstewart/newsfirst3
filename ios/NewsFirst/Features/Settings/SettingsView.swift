@@ -165,8 +165,7 @@ struct SettingsView: View {
                     }
 
                     section("Account", icon: "person.crop.circle") {
-                        Text("Browsing as guest. Sign in with Apple/Google lands with notifications — your topics will sync automatically.")
-                            .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                        AccountSection()
                     }
                 }
                 .padding(16)
@@ -231,6 +230,42 @@ struct SettingsView: View {
     private func addTopic() {
         store.addCustomTopic(newTopic)
         newTopic = ""
+    }
+}
+
+struct AccountSection: View {
+    @Environment(FeedStore.self) private var store
+    @Environment(\.openAuth) private var openAuth
+    @Environment(\.dismiss) private var dismiss
+    @State private var auth = AuthClient.shared
+
+    var body: some View {
+        if auth.isSignedIn {
+            VStack(alignment: .leading, spacing: 10) {
+                LabeledContent("Signed in as", value: auth.email ?? "—")
+                    .font(Theme.Text.rowTitle)
+                Button(role: .destructive) { auth.signOut() } label: {
+                    Text("Sign out").font(Theme.Text.rowTitle)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.tierHigh)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Browsing as guest. Sign in to sync topics and enable keyword alerts.")
+                    .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                Button {
+                    dismiss()
+                    openAuth()
+                } label: {
+                    Text("Sign in")
+                        .font(Theme.Text.rowTitle).foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(Theme.selectionGradient, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
     }
 }
 

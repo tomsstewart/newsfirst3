@@ -43,7 +43,9 @@ final class FeedStore {
     var selectedSource: String = ""
     private(set) var sources: [FeedSource] = []
     var mode: ViewMode = .list
-    var reading: Article?                                     // in-app reader presentation
+    var reading: Article? {
+        didSet { if let a = reading { Analytics.capture("article_open", ["source": a.sourceName, "tier": a.tier.rawValue]) } }
+    }
 
     // Persisted preferences (UserDefaults now; syncs to topic_subscriptions post-auth)
     var customTopics: [String] { didSet { defaults.set(customTopics, forKey: "customTopics") } }
@@ -220,6 +222,7 @@ final class FeedStore {
             customTopics.append(topic)
             selectedTopic = topic
         }
+        Analytics.capture("custom_topic_add", ["topic": topic])
         Task { await loadCustom(topic) }
     }
 
