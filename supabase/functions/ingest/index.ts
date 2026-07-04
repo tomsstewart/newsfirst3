@@ -91,7 +91,10 @@ export function parseFeed(xml: string): { title: string; link: string; pubDate?:
   return items;
 }
 const decode = (s: string) =>
-  s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/<[^>]+>/g, "").trim();
+  s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+   .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ")
+   .replace(/<[^>]+>/g, "").trim();
 
 export function normalizeUrl(raw: string): string {
   try {
@@ -240,8 +243,13 @@ Deno.serve(async (req: Request) => {
     GEMINI_API_KEY: Deno.env.get("GEMINI_API_KEY") ?? "",
   };
   // Only the service role may trigger ingestion (verify_jwt alone would admit the public anon key).
-  const bearer = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (bearer !== env.SUPABASE_SERVICE_KEY) {
+  // The gateway has already verified the JWT signature; here we only need the role claim.
+  const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  const isServiceRole = bearer === env.SUPABASE_SERVICE_KEY || (() => {
+    try { return JSON.parse(atob(bearer.split(".")[1])).role === "service_role"; }
+    catch { return false; }
+  })();
+  if (!isServiceRole) {
     return new Response("forbidden", { status: 403 });
   }
   const task = new URL(req.url).searchParams.get("task") ?? "ingest";
