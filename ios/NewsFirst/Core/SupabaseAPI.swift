@@ -20,8 +20,9 @@ struct SupabaseAPI {
     }
 
     /// Sparse-topic / source-browse fallbacks: targeted server queries against the same view.
-    func fetchTopic(_ topic: String, limit: Int = 60) async throws -> [Article] {
+    func fetchTopic(_ topic: String, limit: Int = 60, offset: Int = 0) async throws -> [Article] {
         try await get([
+            .init(name: "offset", value: String(offset)),
             .init(name: "topics", value: "cs.{\(topic)}"),
             .init(name: "select", value: Self.fields),
             .init(name: "order", value: "score.desc,published_at.desc"),
@@ -29,8 +30,9 @@ struct SupabaseAPI {
         ])
     }
 
-    func fetchSource(_ name: String, limit: Int = 60) async throws -> [Article] {
+    func fetchSource(_ name: String, limit: Int = 60, offset: Int = 0) async throws -> [Article] {
         try await get([
+            .init(name: "offset", value: String(offset)),
             .init(name: "source_name", value: "eq.\(name)"),
             .init(name: "select", value: Self.fields),
             .init(name: "order", value: "published_at.desc"),

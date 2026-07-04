@@ -61,7 +61,8 @@ struct ListFeedView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 6)
-            .padding(.bottom, 24)
+            LoadMoreButton()
+            Spacer().frame(height: 24)
         }
         .refreshable { await store.refresh() }
         .background(Theme.canvas)
@@ -93,6 +94,67 @@ struct ListFeedView: View {
     }
 }
 
+
+/// v2-style article card: full-bleed image with text overlaid on a bottom darkening fade.
+struct OverlayCard: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+    var height: CGFloat = 540
+    var showRead = true
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            GeometryReader { g in
+                ArticleImage(article: article, width: 800)
+                    .frame(width: g.size.width, height: g.size.height)
+                    .clipped()
+            }
+            LinearGradient(colors: [.clear, .black.opacity(0.35), .black.opacity(0.92)],
+                           startPoint: .init(x: 0.5, y: 0.30), endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    TierBadge(tier: article.tier, loud: true)
+                    ScoreDebugBadge(article: article)
+                }
+                Text(article.title)
+                    .font(Theme.Text.hero)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let excerpt = article.excerpt, !excerpt.isEmpty {
+                    Text(excerpt)
+                        .font(Theme.Text.excerpt)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(3)
+                }
+                HStack {
+                    Text(article.sourceName)
+                        .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
+                    Spacer()
+                    if showRead {
+                        Button { store.reading = article } label: {
+                            Text("Read article")
+                                .font(Theme.Text.rowTitle)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .glassChip()
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                    Spacer()
+                    Text(article.publishedAt, format: .relative(presentation: .named))
+                        .font(Theme.Text.meta).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .padding(16)
+            .shadow(color: .black.opacity(0.55), radius: 3, y: 1)
+        }
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.panelBorder, lineWidth: 1))
+        .contentShape(Rectangle())
+    }
+}
+
 /// Accordion cell: the hero image unfolds down from the top edge; text reflows beneath.
 /// Same identity collapsed/expanded, so the animation is strictly up/down.
 struct ArticleExpandableCell: View {
@@ -104,47 +166,8 @@ struct ArticleExpandableCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if expanded {
-                ArticleImage(article: article, width: 800)
-                    .frame(height: 200)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                OverlayCard(article: article, height: 560)
                     .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            if expanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        TierBadge(tier: article.tier, loud: true)
-                        Text(article.publishedAt, format: .relative(presentation: .named))
-                            .font(Theme.Text.meta).foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    Text(article.title)
-                        .font(Theme.Text.hero)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let excerpt = article.excerpt, !excerpt.isEmpty {
-                        Text(excerpt)
-                            .font(Theme.Text.excerpt)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                    }
-                    HStack {
-                        Text(article.sourceName)
-                            .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
-                        Spacer()
-                        Button { store.reading = article } label: {
-                            Text("Read article")
-                                .font(Theme.Text.rowTitle)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 8)
-                                .glassChip(prominent: true)
-                        }
-                        .buttonStyle(PressableStyle())
-                    }
-                    .padding(.top, 2)
-                }
-                .padding(14)
-                .transition(.move(edge: .top).combined(with: .opacity))
             } else {
                 ListRow(article: article)
                     .transition(.opacity)
@@ -168,6 +191,7 @@ struct ListRow: View {
             ArticleImage(article: article, width: 220)
                 .frame(width: 92, height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
             VStack(alignment: .leading, spacing: 4) {
                 Text(article.title)
                     .font(Theme.Text.rowTitle)
@@ -211,7 +235,8 @@ struct ImmersiveFeedView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 6)
-            .padding(.bottom, 24)
+            LoadMoreButton()
+            Spacer().frame(height: 24)
         }
         .refreshable { await store.refresh() }
         .background(Theme.canvas)
@@ -221,39 +246,8 @@ struct ImmersiveFeedView: View {
 struct ImmersiveCard: View {
     let article: Article
     var hero = false
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ArticleImage(article: article, width: hero ? 800 : 640)
-                .frame(height: hero ? 230 : 178)
-                .clipped()
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 8) {
-                    TierBadge(tier: article.tier)
-                    Text(article.publishedAt, format: .relative(presentation: .named))
-                        .font(Theme.Text.meta).foregroundStyle(.secondary)
-                }
-                Text(article.title)
-                    .font(hero ? Theme.Text.hero : Theme.Text.cardTitle)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                if hero, let excerpt = article.excerpt, !excerpt.isEmpty {
-                    Text(excerpt)
-                        .font(Theme.Text.excerpt)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                Text(article.sourceName)
-                    .font(Theme.Text.meta).foregroundStyle(Theme.link).underline()
-            }
-            .padding(14)
-        }
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.panelBorder, lineWidth: 1))
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-        .contentShape(Rectangle())
+        OverlayCard(article: article, height: hero ? 480 : 330, showRead: hero)
     }
 }
 
@@ -390,6 +384,45 @@ struct FeedSkeleton: View {
                 .padding(22).padding(.bottom, 34)
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+    }
+}
+
+/// Pages the feed: raises the render cap and fetches deeper server pages as needed.
+struct LoadMoreButton: View {
+    @Environment(FeedStore.self) private var store
+    @State private var loading = false
+    var body: some View {
+        Button {
+            guard !loading else { return }
+            loading = true
+            Task { await store.loadMore(); loading = false }
+        } label: {
+            HStack(spacing: 7) {
+                if loading { ProgressView().controlSize(.small) }
+                Text(loading ? "Loading…" : "Load more")
+                    .font(Theme.Text.rowTitle)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 22).padding(.vertical, 10)
+            .glassChip()
+        }
+        .buttonStyle(PressableStyle())
+        .padding(.top, 12)
+    }
+}
+
+/// Developer overlay: raw priority score on every row/card (Settings → Developer).
+struct ScoreDebugBadge: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+    var body: some View {
+        if store.showPriorityDebug {
+            Text("\(Int(article.score)) · \(article.tier.rawValue)")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Theme.tierColor(article.tier).opacity(0.9), in: Capsule())
+                .foregroundStyle(.white)
         }
     }
 }

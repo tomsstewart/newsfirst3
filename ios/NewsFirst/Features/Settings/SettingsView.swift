@@ -135,6 +135,18 @@ struct SettingsView: View {
                         }
                     }
 
+                    section("Developer", icon: "wrench.and.screwdriver") {
+                        Toggle(isOn: $store.showPriorityDebug) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Priority debug").font(Theme.Text.rowTitle)
+                                Text("Show each article's raw score and tier on the feed.")
+                                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(Theme.accent)
+                    }
+
                     section("Notifications", icon: "bell.badge") {
                         Text("Keyword alerts, per-topic levels (all / high only), quiet hours and the daily brief arrive with the next phase.")
                             .font(Theme.Text.excerpt).foregroundStyle(.secondary)

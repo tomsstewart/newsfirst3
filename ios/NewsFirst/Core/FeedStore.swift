@@ -49,6 +49,7 @@ final class FeedStore {
     var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics") } }
     var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources") } }
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
+    var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
     private let api = SupabaseAPI()
@@ -60,6 +61,7 @@ final class FeedStore {
         enabledTopics = defaults.stringArray(forKey: "enabledTopics") ?? Array(Self.presetTopics.prefix(8))
         disabledSources = Set(defaults.stringArray(forKey: "disabledSources") ?? [])
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .auto
+        showPriorityDebug = defaults.bool(forKey: "priorityDebug")
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         mode = defaultMode
     }
@@ -88,8 +90,33 @@ final class FeedStore {
 
     var isCustomSelected: Bool { customTopics.contains(selectedTopic) }
 
+    /// Sensible initial page; "Load more" raises the cap and pulls further pages server-side.
+    static let pageSize = 30
+    private(set) var renderCaps: [String: Int] = [:]
+
+    private var capKey: String { browse == .topics ? "t:\(selectedTopic)" : "s:\(selectedSource)" }
+    var renderCap: Int { renderCaps[capKey] ?? Self.pageSize }
+    var canLoadMore: Bool { visibleUncapped.count > renderCap || visibleUncapped.count >= renderCap }
+
+    func loadMore() async {
+        let key = capKey
+        let newCap = (renderCaps[key] ?? Self.pageSize) + Self.pageSize
+        renderCaps[key] = newCap
+        // If the local pool can't fill the new cap, page more from the server.
+        if visibleUncapped.count < newCap {
+            if browse == .sources {
+                let extra = (try? await api.fetchSource(selectedSource, limit: Self.pageSize, offset: visibleUncapped.count)) ?? []
+                sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            } else if !isCustomSelected {
+                let extra = (try? await api.fetchTopic(selectedTopic, limit: Self.pageSize, offset: visibleUncapped.count)) ?? []
+                topicExtra[selectedTopic, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            }
+        }
+    }
+
     /// Articles for the selected topic/source, source-diversity capped.
-    var visible: [Article] { visibleItems(topic: selectedTopic, source: selectedSource) }
+    var visibleUncapped: [Article] { visibleItems(topic: selectedTopic, source: selectedSource) }
+    var visible: [Article] { Array(visibleUncapped.prefix(renderCap)) }
 
     /// Bar-relative lookup (wraps) so neighbouring columns can render during a swipe.
     func visibleAt(offset: Int) -> [Article] {
@@ -119,7 +146,7 @@ final class FeedStore {
             base = customResults[topic] ?? []
         } else {
             let local = articles.filter { $0.topics.contains(topic) }
-            base = local.isEmpty ? (topicExtra[topic] ?? []) : local
+            base = local.isEmpty ? (topicExtra[topic] ?? []) : local + (topicExtra[topic] ?? []).filter { e in !local.contains(where: { $0.id == e.id }) }
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
         return diversify(filtered.sorted { ($0.score, $0.publishedAt) > ($1.score, $1.publishedAt) })
@@ -237,7 +264,7 @@ extension JSONEncoder {
 }
 
 extension ISO8601DateFormatter {
-    static let fractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let fractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f

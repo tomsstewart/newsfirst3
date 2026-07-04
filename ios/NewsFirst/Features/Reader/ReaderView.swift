@@ -12,8 +12,20 @@ struct ReaderSheet: View {
 
     var body: some View {
         #if os(iOS)
-        SafariView(url: article.url)
-            .ignoresSafeArea()
+        ZStack(alignment: .topTrailing) {
+            SafariView(url: article.url)
+                .ignoresSafeArea()
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.bold())
+                    .foregroundStyle(.primary)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .padding(.trailing, 14)
+            .padding(.top, 8)
+        }
         #else
         VStack(spacing: 0) {
             HStack {
@@ -49,9 +61,38 @@ struct WebView: NSViewRepresentable {
     let url: URL
     func makeNSView(context: Context) -> WKWebView {
         let v = WKWebView()
+        CookieBanners.apply(to: v)
         v.load(URLRequest(url: url))
         return v
     }
     func updateNSView(_ v: WKWebView, context: Context) {}
 }
 #endif
+
+/// Hides the common consent-banner frameworks in any WKWebView we own.
+/// (The iOS SFSafariViewController path prefers Reader Mode, which sidesteps banners.)
+enum CookieBanners {
+    static let selectors = [
+        "#onetrust-consent-sdk", ".onetrust-pc-dark-filter", "#didomi-host", ".didomi-popup-open",
+        ".qc-cmp2-container", "[id^='sp_message_container']", ".fc-consent-root",
+        "#CybotCookiebotDialog", "#usercentrics-root", ".osano-cm-window", "#cookie-banner",
+        ".cookie-banner", "#gdpr-banner", ".gdpr", "#consent_blackbar", ".truste_box_overlay",
+        "#truste-consent-track", ".cc-window", "#cmpbox", "#cmpbox2",
+    ]
+    static func apply(to webView: WKWebView) {
+        let rules = """
+        [{"trigger": {"url-filter": ".*"},
+          "action": {"type": "css-display-none", "selector": "\(selectors.joined(separator: ", "))"}}]
+        """
+        WKContentRuleListStore.default().compileContentRuleList(
+            forIdentifier: "hide-cookie-banners", encodedContentRuleList: rules
+        ) { list, _ in
+            if let list { webView.configuration.userContentController.add(list) }
+        }
+        // Also un-freeze pages that lock scroll behind the banner.
+        let unfreeze = WKUserScript(
+            source: "const s=document.createElement('style');s.textContent='html,body{overflow:auto !important}';document.head?.appendChild(s);",
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        webView.configuration.userContentController.addUserScript(unfreeze)
+    }
+}

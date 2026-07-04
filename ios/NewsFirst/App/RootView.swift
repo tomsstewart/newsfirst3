@@ -24,7 +24,11 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(store.appearance.scheme ?? .dark)   // Midnight Glass has no light palette yet — Auto means dark
+        #if os(iOS)
+        .fullScreenCover(item: $store.reading) { ReaderSheet(article: $0) }
+        #else
         .sheet(item: $store.reading) { ReaderSheet(article: $0) }
+        #endif
         .sheet(isPresented: $showSettings) { SettingsView() }
         .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
             await store.backfillIfSparse()
