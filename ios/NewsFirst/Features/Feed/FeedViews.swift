@@ -12,17 +12,7 @@ struct ArticleImage: View {
         if let orig = article.imageURL, let cg = ImagePipeline.preloaded[orig] {
             Image(decorative: cg, scale: 2).resizable().aspectRatio(contentMode: .fill)
         } else if let url = ImageProxy.url(article.imageURL, width: width) {
-            AsyncImage(url: url, transaction: Transaction(animation: Theme.Motion.card)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                        .transition(.opacity)
-                case .failure:
-                    TopicPlaceholder(topic: article.topics.first ?? "news")
-                default:
-                    Rectangle().fill(.white.opacity(0.05)).shimmer()
-                }
-            }
+            CachedImage(url: url, topicFallback: article.topics.first ?? "news")
         } else {
             TopicPlaceholder(topic: article.topics.first ?? "news")
         }
@@ -87,7 +77,7 @@ struct ListFeedView: View {
     /// One article cell: collapsed row ⇄ expanded card as a pure vertical unfold.
     private func articleCell(_ article: Article) -> some View {
         ArticleExpandableCell(article: article, expanded: expandedID == article.id) {
-            withAnimation(Theme.Motion.card) {
+            withAnimation(Theme.Motion.expand) {
                 expandedID = expandedID == article.id ? nil : article.id
             }
         }
@@ -167,12 +157,13 @@ struct ArticleExpandableCell: View {
         VStack(alignment: .leading, spacing: 0) {
             if expanded {
                 OverlayCard(article: article, height: 560)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(.opacity)      // crossfade; the container's height change is the animation
             } else {
                 ListRow(article: article)
                     .transition(.opacity)
             }
         }
+        .animation(Theme.Motion.expand, value: expanded)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: expanded ? 18 : 14))
         .overlay(RoundedRectangle(cornerRadius: expanded ? 18 : 14).strokeBorder(Theme.panelBorder, lineWidth: 1))

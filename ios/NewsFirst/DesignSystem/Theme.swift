@@ -27,6 +27,7 @@ enum Theme {
         static let card = Animation.spring(response: 0.42, dampingFraction: 0.86)
         static let feed = Animation.spring(response: 0.45, dampingFraction: 0.88)
         static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
+        static let expand = Animation.easeInOut(duration: 0.30)   // v2.5 LayoutAnimation.easeInEaseOut
     }
 
     enum Text {
