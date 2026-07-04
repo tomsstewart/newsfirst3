@@ -99,8 +99,8 @@ struct RootView: View {
                 }
                 .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.selectedTopic)-\(store.selectedSource)")   // replay kinetic entrances per topic/mode
                 .transition(.asymmetric(
-                    insertion: .move(edge: swipeDirection).combined(with: .opacity),
-                    removal: .opacity))
+                    insertion: .move(edge: swipeDirection),
+                    removal: .move(edge: swipeDirection == .trailing ? .leading : .trailing)))   // connected column push
             }
         }
         .animation(Theme.Motion.feed, value: store.mode)
@@ -131,6 +131,7 @@ struct RootView: View {
 
     /// Swipe left/right anywhere on the feed pages through the topic bar.
     private func stepTopic(_ delta: Int) {
+        KineticGate.suppressed = true    // swipe = straight column scroll, no entrance cascade
         swipeDirection = delta > 0 ? .trailing : .leading
         if store.browse == .sources {
             let bar = store.sourceBar
@@ -185,6 +186,7 @@ struct TopicBar: View {
         let selected = store.selectedTopic == topic
         let custom = store.customTopics.contains(topic)
         return Button {
+            KineticGate.suppressed = false   // direct tap earns the kinetic cascade
             withAnimation(Theme.Motion.snappy) { store.selectedTopic = topic }
             if custom { Task { await store.loadCustom(topic) } }
         } label: {
@@ -232,6 +234,7 @@ struct TopicBar: View {
     private func sourceChip(_ source: String) -> some View {
         let selected = store.selectedSource == source
         return Button {
+            KineticGate.suppressed = false
             withAnimation(Theme.Motion.snappy) { store.selectedSource = source }
         } label: {
             Text(source)

@@ -4,8 +4,8 @@ import SwiftUI
 enum Theme {
     // Midnight Glass: deep blue-black canvas, translucent panels, glow accents.
     static let canvas = Color(red: 0.047, green: 0.055, blue: 0.078)        // #0C0E14
-    static let panel = Color(red: 0.082, green: 0.094, blue: 0.129)         // #151824
-    static let panelBorder = Color.white.opacity(0.07)
+    static let panel = Color(red: 0.118, green: 0.133, blue: 0.184)         // #1E2230 — must read against the canvas
+    static let panelBorder = Color.white.opacity(0.11)
     static let accent = Color(red: 0.30, green: 0.62, blue: 0.92)           // glassy blue
     static let link = Color(red: 0.30, green: 0.62, blue: 0.92)
 
@@ -42,6 +42,10 @@ enum Theme {
 
 // MARK: - Kinetic entrance (cards slide up, settle, un-blur — staggered by index)
 
+enum KineticGate {
+    nonisolated(unsafe) static var suppressed = false   // set true for swipe navigation, false for chip taps
+}
+
 struct KineticEntrance: ViewModifier {
     let index: Int
     @State private var shown = false
@@ -51,7 +55,11 @@ struct KineticEntrance: ViewModifier {
             .offset(y: shown ? 0 : 26)
             .blur(radius: shown ? 0 : 5)
             .onAppear {
-                withAnimation(Theme.Motion.feed.delay(Double(min(index, 8)) * 0.045)) { shown = true }
+                if KineticGate.suppressed {
+                    shown = true
+                } else {
+                    withAnimation(Theme.Motion.feed.delay(Double(min(index, 8)) * 0.045)) { shown = true }
+                }
             }
     }
 }
