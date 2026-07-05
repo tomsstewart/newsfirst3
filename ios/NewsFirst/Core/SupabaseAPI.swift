@@ -113,16 +113,13 @@ struct FeedSource: Codable, Identifiable, Hashable {
 
 /// Image CDN proxy: resizes + caches at the edge and shields us from hotlink blocks.
 enum ImageProxy {
+    private static let strict = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+
     static func url(_ original: URL?, width: Int) -> URL? {
         guard let original else { return nil }
-        var comps = URLComponents(string: "https://wsrv.nl/")!
-        comps.queryItems = [
-            .init(name: "url", value: original.absoluteString),
-            .init(name: "w", value: String(width)),
-            .init(name: "fit", value: "cover"),
-            .init(name: "output", value: "webp"),
-            .init(name: "q", value: "72"),
-        ]
-        return comps.url
+        // Fully percent-encode the nested URL: URLComponents legally leaves `&` bare
+        // inside query values, which truncated signed CDN URLs (Guardian) at the proxy.
+        guard let encoded = original.absoluteString.addingPercentEncoding(withAllowedCharacters: strict) else { return nil }
+        return URL(string: "https://wsrv.nl/?url=\(encoded)&w=\(width)&fit=cover&output=webp&q=72")
     }
 }

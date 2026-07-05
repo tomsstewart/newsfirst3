@@ -105,16 +105,24 @@ export function parseFeed(xml: string): { title: string; link: string; pubDate?:
       const m = b.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)</${n}>`, "i"));
       return m ? decode(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim()) : undefined;
     };
-    // Atom hrefs carry XML-escaped query strings; store the real URL or dedupe breaks.
-    const linkAttr = b.match(/<link[^>]*href="([^"]+)"/i)?.[1]?.replace(/&amp;/g, "&");
+    // XML attribute values are entity-escaped: URLs with query strings arrive as
+    // &amp; and MUST be decoded or signed CDN URLs (Guardian) 404 forever.
+    const attr = (s?: string) => s?.replace(/&amp;/g, "&").replace(/&#0*38;/g, "&");
+    const linkAttr = attr(b.match(/<link[^>]*href="([^"]+)"/i)?.[1]);
     const title = tag("title");
     const link = tag("link") || linkAttr;
     if (!title || !link) continue;
-    const image =
-      b.match(/<media:content[^>]*url="([^"]+)"/i)?.[1] ??
+    // Feeds often list several media:content renditions — take the LARGEST (Guardian
+    // leads with a 140px thumbnail; first-match shipped postage stamps).
+    const renditions = [...b.matchAll(/<media:content[^>]*?url="([^"]+)"[^>]*?>/gi)]
+      .map((m) => ({ url: m[1], width: Number(m[0].match(/width="(\d+)"/)?.[1] ?? 0) }))
+      .sort((a, z) => z.width - a.width);
+    const image = attr(
+      renditions[0]?.url ??
       b.match(/<media:thumbnail[^>]*url="([^"]+)"/i)?.[1] ??
       b.match(/<enclosure[^>]*url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)?.[1] ??
-      b.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i)?.[1];   // e.g. The Verge: image only in description HTML
+      b.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i)?.[1],   // e.g. The Verge: image only in description HTML
+    );
     items.push({ title, link, pubDate: tag("pubDate") ?? tag("published") ?? tag("dc:date"), description: tag("description") ?? tag("summary"), image });
   }
   return items;

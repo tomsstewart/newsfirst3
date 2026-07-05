@@ -54,12 +54,15 @@ enum ImagePipeline {
     }
 
     private static func fetch(_ url: URL) async -> CGImage? {
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else {
+        guard let (data, response) = try? await URLSession.shared.data(from: url) else {
             return nil   // transport failure: transient, retry freely later
+        }
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            return nil   // upstream/proxy error (4xx/5xx): also transient, never blacklist
         }
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
-            withLock { _ = failedURLs.insert(url) }   // truly undecodable
+            withLock { _ = failedURLs.insert(url) }   // 200 but undecodable: truly dead
             return nil
         }
         cache.setObject(CacheBox(img), forKey: url as NSURL, cost: img.bytesPerRow * img.height)
