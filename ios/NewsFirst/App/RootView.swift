@@ -37,10 +37,12 @@ struct RootView: View {
         #else
         .sheet(item: $store.reading) { ReaderSheet(article: $0) }
         #endif
-        .sheet(isPresented: $showSettings) { SettingsView() }
-        .sheet(isPresented: $showAuth) { AuthView() }
-        .sheet(item: $store.story) { StoryView(seed: $0) }
-        .sheet(isPresented: $showInbox) { BreakingInboxView() }
+        // Every presented sheet gets the appearance override at its own presentation
+        // root — the documented-reliable placement (a child's modifier can be missed).
+        .sheet(isPresented: $showSettings) { SettingsView().preferredColorScheme(store.appearance.scheme) }
+        .sheet(isPresented: $showAuth) { AuthView().preferredColorScheme(store.appearance.scheme) }
+        .sheet(item: $store.story) { StoryView(seed: $0).preferredColorScheme(store.appearance.scheme) }
+        .sheet(isPresented: $showInbox) { BreakingInboxView().preferredColorScheme(store.appearance.scheme) }
         .environment(\.openAuth, { showAuth = true })
         .onAppear { Analytics.capture("app_open") }
         .task {
