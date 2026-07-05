@@ -643,7 +643,7 @@ struct CardActionRow: View {
             Group {
                 if let n = article.clusterSources, n >= 2 {
                     Button { store.story = article } label: {
-                        pill("📰 Full coverage")
+                        pill("newspaper.fill", "Full coverage")
                     }
                     .buttonStyle(PressableStyle())
                 } else {
@@ -652,7 +652,7 @@ struct CardActionRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Button { store.reading = article } label: {
-                pill("📖 Read")
+                pill("book.fill", "Read")
             }
             .buttonStyle(PressableStyle())
             .frame(maxWidth: .infinity)
@@ -661,13 +661,16 @@ struct CardActionRow: View {
         }
     }
 
-    private func pill(_ label: String) -> some View {
-        Text(label)
-            .font(Theme.Text.rowTitle)
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .glassChip()
+    private func pill(_ symbol: String, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.caption.bold())
+            Text(label)
+        }
+        .font(Theme.Text.rowTitle)
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .glassChip()
     }
 }
 
@@ -689,8 +692,13 @@ struct CardListenButton: View {
             }
         } label: {
             HStack(spacing: 5) {
-                if preparing { ProgressView().controlSize(.mini) }
-                Text(preparing ? "🔊 …" : (speech.isSpeaking ? "🔊 Stop" : "🔊 Listen"))
+                if preparing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
+                        .font(.caption.bold())
+                }
+                Text(preparing ? "…" : (speech.isSpeaking ? "Stop" : "Listen"))
                     .font(Theme.Text.rowTitle)
                     .lineLimit(1)
             }
@@ -715,8 +723,8 @@ struct CoverageChip: View {
                 store.story = article
             } label: {
                 HStack(spacing: 4) {
-                    Text("📰")
-                    if !compact { Text("Full coverage · \(n)") }
+                    Image(systemName: "square.stack.3d.up.fill").font(.system(size: 8, weight: .bold))
+                    Text(compact ? "\(n) sources" : "Full coverage · \(n)")
                 }
                 .font(Theme.Text.badge)
                 .padding(.horizontal, 8).padding(.vertical, 3)
