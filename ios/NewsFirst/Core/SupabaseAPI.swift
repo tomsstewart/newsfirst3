@@ -63,6 +63,29 @@ struct SupabaseAPI {
     /// Custom topic = full-text search across title+excerpt (server-side, websearch
     /// semantics: word-boundary matches, stemming, multi-word AND) — `ilike *apple*`
     /// matched "pineapple", which is below the floor for the flagship feature.
+    /// Google News source census: fire-and-forget counts into gn_source_sightings
+    /// (via the gn_log definer RPC) so the most-surfaced publishers become corpus
+    /// feed candidates. Failures are silently dropped — it's telemetry.
+    struct GNEntry: Encodable, Sendable {
+        let name: String
+        var topic: String? = nil
+        var domain: String? = nil
+        let n: Int
+    }
+    func logGNSources(_ entries: [GNEntry]) async {
+        struct Payload: Encodable { let entries: [GNEntry] }
+        guard !entries.isEmpty,
+              let body = try? JSONEncoder().encode(Payload(entries: entries)) else { return }
+        var req = URLRequest(url: Self.projectURL.appending(path: "rest/v1/rpc/gn_log"))
+        req.httpMethod = "POST"
+        req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(Self.publishableKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+        req.timeoutInterval = 10
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
     func searchArticles(matching query: String, limit: Int = 80) async throws -> [Article] {
         let q = query.replacingOccurrences(of: ",", with: " ").trimmingCharacters(in: .whitespaces)
         // Relevance × freshness ranking server-side (search_feed RPC) — recency-only

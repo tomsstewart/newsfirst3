@@ -126,6 +126,10 @@ final class FeedStore {
     @ObservationIgnored private var customEpoch = 0
     /// Rows already sent to (or through) enrichment this engine-epoch — one attempt each.
     @ObservationIgnored private var enrichQueued: Set<UUID> = []
+    /// Census dedupe: topics whose google fetch was counted this session, and
+    /// source names whose publisher domain was already reported.
+    @ObservationIgnored private var gnCountedTopics: Set<String> = []
+    @ObservationIgnored private var gnDomainLogged: Set<String> = []
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
@@ -716,6 +720,7 @@ final class FeedStore {
             return try? await api.searchArticles(matching: topic)
         case .google:
             guard let fresh = try? await GoogleNewsRSS.fetch(topic: topic) else { return nil }
+            logGNCensus(fresh, topic: topic)
             return keepEnriched(fresh, topic: topic)
         case .hybrid:
             // Our High-priority matches lead (they're what the push matcher alerts
@@ -723,7 +728,9 @@ final class FeedStore {
             async let oursReq = api.searchArticles(matching: topic)
             async let googleReq = GoogleNewsRSS.fetch(topic: topic)
             let ours = ((try? await oursReq) ?? []).filter { $0.tier == .high }
-            let google = keepEnriched((try? await googleReq) ?? [], topic: topic)
+            let googleFresh = (try? await googleReq) ?? []
+            logGNCensus(googleFresh, topic: topic)
+            let google = keepEnriched(googleFresh, topic: topic)
             guard !(ours.isEmpty && google.isEmpty) else { return nil }
             var seen = Set(ours.map { Self.titleKey($0.title) })
             return ours + google.filter { seen.insert(Self.titleKey($0.title)).inserted }
@@ -736,6 +743,27 @@ final class FeedStore {
         let old = Dictionary((customResults[topic] ?? []).map { ($0.id, $0) },
                              uniquingKeysWith: { a, _ in a })
         return fresh.map { new in old[new.id].flatMap { $0.imageURL != nil ? $0 : nil } ?? new }
+    }
+
+    /// The experiment's payoff: count which publishers Google surfaces (once per
+    /// topic per session) — the top of that table is the corpus's shopping list.
+    private func logGNCensus(_ rows: [Article], topic: String) {
+        guard !rows.isEmpty, !gnCountedTopics.contains(topic) else { return }
+        gnCountedTopics.insert(topic)
+        var counts: [String: Int] = [:]
+        for r in rows where r.isExternal { counts[r.sourceName, default: 0] += 1 }
+        let entries = counts.map { SupabaseAPI.GNEntry(name: $0.key, topic: topic, n: $0.value) }
+        Task { await api.logGNSources(entries) }
+    }
+
+    /// Second census pass: enrichment learned the publisher's real domain — file it.
+    private func logGNDomains(_ enriched: [Article]) {
+        let entries: [SupabaseAPI.GNEntry] = enriched.compactMap { a in
+            guard let host = a.url.host(), !gnDomainLogged.contains(a.sourceName) else { return nil }
+            gnDomainLogged.insert(a.sourceName)
+            return SupabaseAPI.GNEntry(name: a.sourceName, domain: host, n: 0)
+        }
+        if !entries.isEmpty { Task { await api.logGNSources(entries) } }
     }
 
     /// Cheap cross-engine dedupe key: same story, two tellings, one row.
@@ -766,6 +794,7 @@ final class FeedStore {
                     return out
                 }
                 guard epoch == customEpoch, googleNewsCustoms, var rows = customResults[topic] else { return }
+                logGNDomains(enriched)
                 for e in enriched {
                     if let idx = rows.firstIndex(where: { $0.id == e.id }) { rows[idx] = e }
                 }
@@ -787,6 +816,7 @@ final class FeedStore {
         Task {
             guard let e = await GoogleNewsRSS.enrich(a) else { return }
             guard epoch == customEpoch, googleNewsCustoms, var rows = customResults[t] else { return }
+            logGNDomains([e])
             if let i = rows.firstIndex(where: { $0.id == e.id }) { rows[i] = e }
             customResults[t] = rows
         }
