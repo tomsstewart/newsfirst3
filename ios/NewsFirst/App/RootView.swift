@@ -164,9 +164,14 @@ struct RootView: View {
 
     @ViewBuilder private func pane(offset: Int, width: CGFloat) -> some View {
         let items = store.visibleAt(offset: offset)
+        let item = store.barItem(offset: offset)
         Group {
             if items.isEmpty {
-                EmptyTopicView(topic: store.barItem(offset: offset))
+                if store.browse == .topics, store.isCustomPending(item) {
+                    FeedSkeleton(mode: store.mode)   // search in flight — never a black void
+                } else {
+                    EmptyTopicView(topic: item)
+                }
             } else {
                 switch store.mode {
                 case .list: ListFeedView(items: items)

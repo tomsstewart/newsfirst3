@@ -134,6 +134,12 @@ final class FeedStore {
 
     var isCustomSelected: Bool { customTopics.contains(selectedTopic) }
 
+    /// True while a custom topic has no results YET (unloaded or in flight) — panes show
+    /// a skeleton then, and the empty state only after a search truly returned nothing.
+    func isCustomPending(_ topic: String) -> Bool {
+        customTopics.contains(topic) && (customResults[topic] == nil || loadingCustom.contains(topic))
+    }
+
     /// Sensible initial page; "Load more" raises the cap and pulls further pages server-side.
     static let pageSize = 30
     private(set) var renderCaps: [String: Int] = [:]
@@ -263,6 +269,11 @@ final class FeedStore {
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
             prefetchImages()
+            // Custom topics live server-side only — warm them with the feed so swiping
+            // into one lands on content, not a blank pane waiting for its first search.
+            for t in customTopics where customResults[t] == nil {
+                Task { await loadCustom(t) }
+            }
             if let fetched = try? await api.fetchBriefs() {
                 // Animated: the brief card lands above an on-screen feed — a hard
                 // insert shoved every row down in a single frame.
