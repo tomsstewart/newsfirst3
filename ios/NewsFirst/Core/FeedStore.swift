@@ -101,6 +101,7 @@ final class FeedStore {
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
+        notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
         mode = defaultMode
         // One-time: Top Stories supersedes World as the home pane (world stays available
         // in Settings for anyone who re-adds it).
@@ -360,6 +361,48 @@ final class FeedStore {
     /// Briefing cards dismissed this session (per topic; fresh launch restores them).
     private(set) var dismissedBriefs: Set<String> = []
     func dismissBrief(_ topic: String) { dismissedBriefs.insert(topic) }
+
+    /// Per-topic notification opt-in (v2.5's bell-next-to-title). Local until the
+    /// alert matcher lands; then it maps onto topic_subscriptions.notify_level.
+    var notifyTopics: Set<String> {
+        didSet { defaults.set(Array(notifyTopics), forKey: "notifyTopics") }
+    }
+    func toggleNotify(_ topic: String) {
+        if notifyTopics.contains(topic) { notifyTopics.remove(topic) } else { notifyTopics.insert(topic) }
+        Analytics.capture("topic_notify_toggle", ["topic": topic, "on": notifyTopics.contains(topic)])
+    }
+
+    /// The bell inbox: current breaking stories (high tier = notification-grade), one per cluster.
+    var breakingStories: [Article] {
+        collapseDuplicates(articles.filter { $0.tier == .high }
+            .sorted { $0.publishedAt > $1.publishedAt })
+    }
+
+    /// Remove a topic from the bar via the chip's ✕ (preset = disable, custom = delete).
+    func removeFromBar(_ topic: String) {
+        guard topic != Self.topStories else { return }
+        withAnimation(Theme.Motion.snappy) {
+            if customTopics.contains(topic) {
+                removeCustomTopic(topic)
+            } else {
+                enabledTopics.removeAll { $0 == topic }
+            }
+        }
+    }
+
+    /// Chip drag-reorder across the real bar: presets reorder among presets, customs
+    /// among customs; Top Stories is pinned. (The old delegate only knew enabledTopics,
+    /// so custom chips never moved.)
+    func moveChip(_ dragged: String, before item: String) {
+        guard dragged != Self.topStories, item != Self.topStories, dragged != item else { return }
+        withAnimation(Theme.Motion.snappy) {
+            if let from = enabledTopics.firstIndex(of: dragged), let to = enabledTopics.firstIndex(of: item) {
+                enabledTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            } else if let from = customTopics.firstIndex(of: dragged), let to = customTopics.firstIndex(of: item) {
+                customTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+            }
+        }
+    }
 
     func start() async {
         loadCache()          // synchronous-fast: feed on screen before any network

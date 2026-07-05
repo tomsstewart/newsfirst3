@@ -1,5 +1,80 @@
 import SwiftUI
 
+/// The header bell's inbox: current breaking stories (High = notification-grade),
+/// one per cluster. Becomes the push-notification history once APNs lands.
+struct BreakingInboxView: View {
+    @Environment(FeedStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var reading: Article?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                HStack(spacing: 7) {
+                    Image(systemName: "bell.badge.fill").font(.subheadline).foregroundStyle(Theme.tierHigh)
+                    Text("Breaking").font(Theme.Text.headline)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.primary)
+                        .padding(9).background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if store.breakingStories.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "bell.slash").font(.system(size: 30)).foregroundStyle(.tertiary)
+                            Text("Nothing breaking right now")
+                                .font(Theme.Text.cardTitle)
+                            Text("This fills the moment a story is corroborated by 3+ sources within 45 minutes.")
+                                .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 50)
+                    } else {
+                        ForEach(store.breakingStories) { a in
+                            Button { reading = a } label: {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    HStack {
+                                        TierBadge(tier: .high, loud: true)
+                                        Text(a.sourceName).font(Theme.Text.badge).foregroundStyle(Theme.accent)
+                                        Spacer()
+                                        Text(a.publishedAt, format: .relative(presentation: .named))
+                                            .font(Theme.Text.meta).foregroundStyle(.secondary)
+                                    }
+                                    Text(a.title)
+                                        .font(Theme.Text.rowTitle).foregroundStyle(.primary)
+                                        .multilineTextAlignment(.leading).lineLimit(3)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(Theme.panel)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
+                    }
+                }
+                .padding(.horizontal, 16).padding(.bottom, 30)
+            }
+        }
+        .background(Theme.canvas)
+        .preferredColorScheme(store.appearance.scheme)
+        #if os(iOS)
+        .fullScreenCover(item: $reading) { ReaderSheet(article: $0) }
+        #else
+        .sheet(item: $reading) { ReaderSheet(article: $0) }
+        #endif
+    }
+}
+
 /// Full Coverage: one story, every telling — the industry pattern (Google News):
 /// dedupe the feed to one representative per cluster, then give the cluster its own
 /// page listing all sources chronologically, each opening in the reader.

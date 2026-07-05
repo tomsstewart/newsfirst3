@@ -127,6 +127,7 @@ struct ListFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
+                TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
                 // A lone band header labels everything and informs nothing (Top Stories
                 // page one is legitimately all-High) — headers only when tiers mix.
@@ -300,6 +301,8 @@ struct ListRow: View {
         // v2.5's tile model: FIXED row height, so every image is the identical
         // edge-to-edge portrait — text-driven heights made each thumbnail a different
         // rectangle. Text clamps guarantee fit (2-line title, 2-line excerpt, meta).
+        // Multi-source stories add the coloured full-coverage footer strip below.
+        VStack(spacing: 0) {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(article.title)
@@ -314,10 +317,7 @@ struct ListRow: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 8) {
-                    CoverageChip(article: article, compact: true)
-                    SourceLine(article: article)
-                }
+                SourceLine(article: article)
             }
             .padding(.vertical, 10)
             .padding(.trailing, 10)
@@ -330,6 +330,8 @@ struct ListRow: View {
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
         .frame(height: 118)
+        CoverageFooter(article: article)
+        }
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
@@ -356,6 +358,7 @@ struct ImmersiveFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
+                TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
                 let showHeaders = bands.count > 1
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
@@ -556,6 +559,73 @@ struct LoadMoreButton: View {
         }
         .buttonStyle(PressableStyle())
         .padding(.top, 12)
+    }
+}
+
+/// v2.5's topic header row: big title + per-topic subscribe bell + on-page custom
+/// topic field. The bell state feeds topic_subscriptions once the alert matcher lands.
+struct TopicHeaderRow: View {
+    let topic: String
+    @Environment(FeedStore.self) private var store
+    @State private var draft = ""
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(FeedStore.displayName(topic))
+                .font(.system(size: 28, weight: .heavy))
+                .lineLimit(1)
+            if store.browse == .topics, topic != FeedStore.topStories {
+                Button { store.toggleNotify(topic) } label: {
+                    Image(systemName: store.notifyTopics.contains(topic) ? "bell.badge.fill" : "bell.badge")
+                        .font(.footnote)
+                        .foregroundStyle(store.notifyTopics.contains(topic) ? Theme.accent : .secondary)
+                        .padding(8)
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+            }
+            Spacer(minLength: 8)
+            if store.browse == .topics {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").font(.caption).foregroundStyle(.secondary)
+                    TextField("Custom topic", text: $draft)
+                        .textFieldStyle(.plain)
+                        .font(Theme.Text.meta)
+                        .onSubmit {
+                            store.addCustomTopic(draft)
+                            draft = ""
+                        }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.primary.opacity(0.05), in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                .frame(width: 150)
+            }
+        }
+        .padding(.top, 2)
+    }
+}
+
+/// v2.5's coloured tile footer: full-width "View full coverage" strip under the story —
+/// also gives every image the same clean bottom edge to land on.
+struct CoverageFooter: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+
+    var body: some View {
+        if let n = article.clusterSources, n >= 2 {
+            Button { store.story = article } label: {
+                HStack(spacing: 5) {
+                    Spacer()
+                    Text("View full coverage · \(n) sources").font(Theme.Text.badge)
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                }
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Theme.accent.opacity(0.13))
+            }
+            .buttonStyle(PressableStyle())
+        }
     }
 }
 

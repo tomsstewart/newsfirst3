@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showSplash = true
     @State private var showAuth = false
+    @State private var showInbox = false
     @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     var body: some View {
@@ -39,6 +40,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showAuth) { AuthView() }
         .sheet(item: $store.story) { StoryView(seed: $0) }
+        .sheet(isPresented: $showInbox) { BreakingInboxView() }
         .environment(\.openAuth, { showAuth = true })
         .onAppear { Analytics.capture("app_open") }
         .task {
@@ -77,14 +79,13 @@ struct RootView: View {
                     }
                     if store.browse == .sources { Task { await store.loadSources() } }
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
-                            .font(.caption2.bold())
-                        Text(store.browse.rawValue.uppercased())
-                            .font(Theme.Text.badge)
-                    }
-                    .fixedSize()   // never collapses under header width pressure
-                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    // Icon-only: the header now also carries the alerts bell (v2.5
+                    // parity) and TOPICS/SOURCES text didn't fit alongside it.
+                    Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
+                        .font(.footnote.bold())
+                        .accessibilityLabel(store.browse.rawValue)
+                        .fixedSize()
+                        .padding(.horizontal, 12).padding(.vertical, 9)
                     .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
                     .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
                     .foregroundStyle(.white)
@@ -102,6 +103,23 @@ struct RootView: View {
             .labelsHidden()
             .layoutPriority(1)   // the selector never truncates; spacers absorb the squeeze
             Spacer(minLength: 6)
+            Button { showInbox = true } label: {
+                Image(systemName: "bell.fill")
+                    .foregroundStyle(.secondary)
+                    .overlay(alignment: .topTrailing) {
+                        let n = store.breakingStories.count
+                        if n > 0 {
+                            Text("\(n)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4.5).padding(.vertical, 1.5)
+                                .background(Theme.tierHigh, in: Capsule())
+                                .offset(x: 9, y: -9)
+                        }
+                    }
+            }
+            .buttonStyle(PressableStyle())
+            Spacer(minLength: 2).frame(maxWidth: 10)
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape.fill")
                     .foregroundStyle(.secondary)
@@ -268,6 +286,14 @@ struct TopicBar: View {
                 Image(systemName: "flame.fill").font(.caption2)
             }
             Text(FeedStore.displayName(topic))
+            // v2.5's ✕ on the active chip: presets disable, customs delete. Replaces the
+            // long-press context menu, whose recognizer was also blocking drag-to-reorder.
+            if selected, topic != FeedStore.topStories {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption)
+                    .opacity(0.85)
+                    .onTapGesture { store.removeFromBar(topic) }
+            }
         }
         .font(Theme.Text.meta)
         return Button {
@@ -299,13 +325,6 @@ struct TopicBar: View {
             return NSItemProvider(object: topic as NSString)
         }
         .onDrop(of: [.text], delegate: ChipDropDelegate(item: topic, dragged: $draggedTopic, store: store))
-        .contextMenu {
-            if custom {
-                Button(role: .destructive) { store.removeCustomTopic(topic) } label: {
-                    Label("Remove topic", systemImage: "trash")
-                }
-            }
-        }
     }
 
     /// Interpolated pill rect in chip-bar space (single source of truth).
@@ -452,12 +471,8 @@ struct ChipDropDelegate: DropDelegate {
     let store: FeedStore
 
     func dropEntered(info: DropInfo) {
-        guard let dragged, dragged != item,
-              let from = store.enabledTopics.firstIndex(of: dragged),
-              let to = store.enabledTopics.firstIndex(of: item) else { return }
-        withAnimation(Theme.Motion.snappy) {
-            store.enabledTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
+        guard let dragged else { return }
+        store.moveChip(dragged, before: item)
     }
     func performDrop(info: DropInfo) -> Bool { dragged = nil; return true }
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
