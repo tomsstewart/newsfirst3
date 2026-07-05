@@ -51,6 +51,9 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO   # standard HTTPS only — skips the TestFlight compliance stop
         DEVELOPMENT_TEAM: 6W4ZBLPC9M
         CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"   # v2.5 shipped universal — updates may never drop iPad
+        INFOPLIST_KEY_UIRequiresFullScreen: YES   # full-screen exempts portrait-only from the iPad multitasking orientation rule
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown"
       configs:
         Debug:
           # InjectionIII hot reload — Debug only: the un-strippable indirect symbols

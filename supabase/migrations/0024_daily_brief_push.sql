@@ -1,9 +1,10 @@
--- Daily briefing push: on by default for everyone with a registered device.
--- Timing follows the briefs pipeline (07:20 generate, 09:20 retry): push at 07:45,
--- with a 09:45 sweep for users the first run missed (briefs late, new devices).
--- brief_push is idempotent per user per day via alerts(kind='digest').
+-- Daily briefing push: on by default, delivered at 10:00 LOCAL time per user.
+-- The cron sweeps hourly; brief_push sends to users whose local hour (their
+-- notification_settings.tz, synced by the app at device registration) equals their
+-- digest_hour (default 10). Idempotent via alerts(kind='digest') within 20h.
 alter table public.notification_settings
   add column if not exists daily_brief boolean not null default true;
+alter table public.notification_settings alter column digest_hour set default 10;
+update public.notification_settings set digest_hour = 10;   -- pre-release rows: align to the product default
 
-select cron.schedule('brief_push',       '45 7 * * *', $$select public.invoke_ingest('brief_push')$$);
-select cron.schedule('brief_push_retry', '45 9 * * *', $$select public.invoke_ingest('brief_push')$$);
+select cron.schedule('brief_push_hourly', '5 * * * *', $$select public.invoke_ingest('brief_push')$$);

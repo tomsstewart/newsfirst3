@@ -526,15 +526,20 @@ async function alertsTick(env: Env): Promise<unknown> {
   return { claimed: claimed.length, sent, invalidated, failures: failures.slice(0, 5) };
 }
 
-/// Daily briefing push (on by default): one digest notification per user per day,
-/// title previews their top stories, payload carries brief:"1" so the client
+/// Daily briefing push (on by default): one digest notification per user per day at
+/// 10:00 LOCAL time (hourly cron; a user is due when their local hour == digest_hour).
+/// Title previews their top stories; payload carries brief:"1" so the client
 /// auto-plays the spoken briefing. Opt-out = notification_settings.daily_brief=false.
+function localHour(tz: string): number {
+  try {
+    return Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: tz })
+      .format(new Date())) % 24;
+  } catch { return new Date().getUTCHours(); }   // junk tz string: treat as UTC
+}
+
 async function briefPush(env: Env): Promise<unknown> {
   if (!env.APNS_KEY_P8) return "apns-not-configured";
   const db = sb(env);
-  const today = new Date().toISOString().slice(0, 10);
-  const briefs = await db.get<{ topic: string }[]>(`briefs?brief_date=eq.${today}&select=topic&limit=1`);
-  if (!briefs.length) return "no-briefs-yet";   // 09:45 sweep retries after the briefs retry cron
 
   const devices = await db.get<{ user_id: string; apns_token: string; environment: string }[]>(
     "devices?is_valid=eq.true&select=user_id,apns_token,environment");
@@ -543,10 +548,12 @@ async function briefPush(env: Env): Promise<unknown> {
   for (const d of devices) (byUser.get(d.user_id) ?? byUser.set(d.user_id, []).get(d.user_id)!)
     .push({ token: d.apns_token, environment: d.environment });
 
-  const optedOut = new Set((await db.get<{ user_id: string }[]>(
-    "notification_settings?daily_brief=eq.false&select=user_id")).map((r) => r.user_id));
+  const settings = new Map((await db.get<{ user_id: string; daily_brief: boolean; tz: string; digest_hour: number }[]>(
+    "notification_settings?select=user_id,daily_brief,tz,digest_hour")).map((r) => [r.user_id, r]));
+  // 20h window (not calendar-day): local-time sends straddle UTC midnight.
+  const since = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
   const sentToday = new Set((await db.get<{ user_id: string }[]>(
-    `alerts?kind=eq.digest&sent_at=gte.${today}T00:00:00Z&select=user_id`)).map((r) => r.user_id));
+    `alerts?kind=eq.digest&sent_at=gte.${since}&select=user_id`)).map((r) => r.user_id));
 
   // Preview pool: today's front page. Personalized per user by their subscribed topics.
   const pool = await db.get<{ title: string; topics: string[] }[]>(
@@ -560,7 +567,9 @@ async function briefPush(env: Env): Promise<unknown> {
 
   let sent = 0, skipped = 0;
   for (const [uid, tokens] of byUser) {
-    if (optedOut.has(uid) || sentToday.has(uid)) { skipped++; continue; }
+    const s = settings.get(uid);
+    const due = localHour(s?.tz ?? "UTC") === (s?.digest_hour ?? 10);
+    if (!due || s?.daily_brief === false || sentToday.has(uid)) { skipped++; continue; }
     const mine = userTopics.get(uid);
     const picks = pool.filter((a) => !mine?.size || a.topics?.some((t) => mine.has(t))).slice(0, 3);
     const fallback = picks.length ? picks : pool.slice(0, 3);
@@ -580,7 +589,7 @@ async function briefPush(env: Env): Promise<unknown> {
     };
     let accepted: string | null = null;
     for (const d of tokens) {
-      const r = await sendPush(env, d, payload, `brief-${today}`);
+      const r = await sendPush(env, d, payload, `brief-${new Date().toISOString().slice(0, 10)}`);
       if (r.ok) { accepted = r.apnsId ?? "accepted"; sent++; }
       else if (r.status === 410 || r.reason === "BadDeviceToken" || r.reason === "Unregistered") {
         await db.patch(`devices?apns_token=eq.${encodeURIComponent(d.token)}`, { is_valid: false }).catch(() => {});
