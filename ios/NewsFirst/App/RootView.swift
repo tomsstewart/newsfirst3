@@ -252,11 +252,15 @@ struct TopicBar: View {
         .font(Theme.Text.meta)
         return Button {
             KineticGate.suppressed = false   // direct tap earns the kinetic cascade
-            if let a = store.topicBar.firstIndex(of: store.selectedTopic),
-               let b = store.topicBar.firstIndex(of: topic), abs(a - b) > 1 {
-                pillEpoch += 1                // distant topic: pill fades across, doesn't dash
+            withAnimation(Theme.Motion.snappy) {
+                // Epoch bump must live inside the transaction or the pill's fade transition
+                // runs un-animated (a hard cut) instead of fading in at the target chip.
+                if let a = store.topicBar.firstIndex(of: store.selectedTopic),
+                   let b = store.topicBar.firstIndex(of: topic), abs(a - b) > 1 {
+                    pillEpoch += 1            // distant topic: pill fades in, doesn't dash
+                }
+                store.selectedTopic = topic
             }
-            withAnimation(Theme.Motion.snappy) { store.selectedTopic = topic }
             if custom { Task { await store.loadCustom(topic) } }
         } label: {
             labelContent
@@ -356,11 +360,13 @@ struct TopicBar: View {
             .lineLimit(1)
         return Button {
             KineticGate.suppressed = false
-            if let a = store.sourceBar.firstIndex(of: store.selectedSource),
-               let b = store.sourceBar.firstIndex(of: source), abs(a - b) > 1 {
-                pillEpoch += 1
+            withAnimation(Theme.Motion.snappy) {
+                if let a = store.sourceBar.firstIndex(of: store.selectedSource),
+                   let b = store.sourceBar.firstIndex(of: source), abs(a - b) > 1 {
+                    pillEpoch += 1
+                }
+                store.selectedSource = source
             }
-            withAnimation(Theme.Motion.snappy) { store.selectedSource = source }
         } label: {
             labelContent
                 .overlay { pillMaskedWhite(source) { labelContent } }

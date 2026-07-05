@@ -189,7 +189,8 @@ struct ArticleExpandableCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if expanded {
-                OverlayCard(article: article, height: 560)
+                // Same footprint as a standard Immersive pane — expanding must not dwarf the feed.
+                OverlayCard(article: article, height: 330, showTier: false)
                     .transition(.opacity)      // crossfade; the container's height change is the animation
             } else {
                 ListRow(article: article)
