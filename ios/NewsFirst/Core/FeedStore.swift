@@ -385,7 +385,9 @@ final class FeedStore {
             parts.append(line)
         }
         guard !parts.isEmpty else { return [] }
-        return ["\(Self.displayName(topic))."] + parts
+        // A natural lead-in, not the bare topic name — "Bitcoin. Bitcoin ETFs log…"
+        // stuttered whenever the first headline opened with the topic word.
+        return ["Here's the latest on \(Self.displayName(topic))."] + parts
     }
 
     func topicBriefing(_ topic: String) -> String { topicBriefingParts(topic).joined(separator: " ") }
