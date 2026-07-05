@@ -128,7 +128,13 @@ final class FeedStore {
     /// different one get demoted (Brisbane bail laws matter less in Birmingham).
     private static let marketCodes: Set<String> = ["US", "CA", "GB", "IE", "AU", "NZ"]
 
-    private func regionAdjust(_ a: Article, home: Set<String>) -> Double {
+    /// Hard-news categories that deserve the front page vs. soft ones that own their
+    /// topic pages but shouldn't flood Top Stories (retiring the keyword boosts removed
+    /// the old importance signal — this reinstates it in a principled form).
+    private static let hardTopics: Set<String> = ["world", "business", "economics", "climate", "health", "science"]
+    private static let softTopics: Set<String> = ["sports", "entertainment", "gaming", "travel"]
+
+    private func rankAdjust(_ a: Article, home: Set<String>, frontPage: Bool) -> Double {
         // Imageless tellings rank slightly down — the region boost was surfacing
         // picture-free live blogs into an image-starved first page.
         var adj: Double = a.imageURL == nil ? -4 : 0
@@ -136,6 +142,14 @@ final class FeedStore {
             let r = Set(regions)
             if !r.isDisjoint(with: home) { adj += 12 }                 // my market's story
             else if r.isSubset(of: Self.marketCodes) { adj -= 8 }      // exclusively someone else's market
+        }
+        // Corroboration: a story multiple independent outlets chose to cover matters
+        // more than a single-source feature, even below the breaking threshold.
+        if let n = a.clusterSources, n > 1 { adj += Double(min(n - 1, 4)) * 3 }
+        if frontPage {
+            // Front page leans hard news; sports/entertainment keep their own panes.
+            if !Set(a.topics).isDisjoint(with: Self.hardTopics) { adj += 6 }
+            else if Set(a.topics).isSubset(of: Self.softTopics) { adj -= 6 }
         }
         return adj
     }
@@ -324,11 +338,12 @@ final class FeedStore {
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
         let home = homeCodes
+        let frontPage = topic == Self.topStories
         let ranked = filtered.sorted {
-            // locale-adjusted score first (a Brisbane bail story shouldn't outrank a
-            // Westminster one for a UK reader); among peers prefer image-bearing, then freshness
-            let l = $0.score + regionAdjust($0, home: home)
-            let r = $1.score + regionAdjust($1, home: home)
+            // locale/corroboration/hardness-adjusted score first; among peers prefer
+            // image-bearing, then freshness
+            let l = $0.score + rankAdjust($0, home: home, frontPage: frontPage)
+            let r = $1.score + rankAdjust($1, home: home, frontPage: frontPage)
             if l != r { return l > r }
             if ($0.imageURL != nil) != ($1.imageURL != nil) { return $0.imageURL != nil }
             return $0.publishedAt > $1.publishedAt
