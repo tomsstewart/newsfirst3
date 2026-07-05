@@ -486,9 +486,23 @@ final class FeedStore {
         let hour = Calendar.current.component(.hour, from: .now)
         let greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
-        // The structure is announced out loud: YOUR topics lead, by design — and every
-        // new story is flagged verbally ("Next…", "In other news…") so transitions
-        // never blur together in the ear.
+        // Order of the briefing: breaking first (if anything is live), then YOUR
+        // topics, then the rest of the front page. Every story change is flagged
+        // verbally ("Next…", "In other news…") so transitions never blur in the ear.
+        var mentionedIDs: Set<UUID> = []
+        var mentionedClusters: Set<UUID> = []
+        let breaking = Array(breakingStories.prefix(2))
+        if !breaking.isEmpty {
+            parts.append("We begin with breaking news.")
+            for (i, a) in breaking.enumerated() {
+                var line = "From \(a.sourceName): \(Self.sentence(a.title))"
+                if i == 0, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
+                parts.append(line)
+                mentionedIDs.insert(a.id)
+                if let c = a.clusterID { mentionedClusters.insert(c) }
+            }
+        }
+
         var customParts: [String] = []
         var customIndex = 0
         for t in customTopics.prefix(3) {
@@ -504,15 +518,16 @@ final class FeedStore {
             customIndex += 1
         }
         if !customParts.isEmpty {
-            parts.append("First, the topics you follow.")
+            parts.append(breaking.isEmpty ? "First, the topics you follow." : "Next, the topics you follow.")
             parts.append(contentsOf: customParts)
         }
 
-        // Then the front page itself — high tier is notification-grade breaking news
-        // now (often empty), so the section reads from the ranked Top Stories pane.
-        let top = visibleItems(topic: Self.topStories, source: "").prefix(3)
+        // Then the rest of the front page (skipping anything already covered above).
+        let top = visibleItems(topic: Self.topStories, source: "")
+            .filter { a in !mentionedIDs.contains(a.id) && (a.clusterID.map { !mentionedClusters.contains($0) } ?? true) }
+            .prefix(3)
         if !top.isEmpty {
-            parts.append(customParts.isEmpty ? "Today's top stories." : "Now, today's top stories.")
+            parts.append(parts.count <= 1 ? "Today's top stories." : "Now, the rest of today's top stories.")
             let intros = ["The lead story, from", "In other news, from", "And finally, from"]
             for (i, a) in top.enumerated() {
                 var line = "\(intros[min(i, intros.count - 1)]) \(a.sourceName): \(Self.sentence(a.title))"
