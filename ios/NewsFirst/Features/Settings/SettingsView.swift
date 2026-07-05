@@ -190,15 +190,15 @@ struct SettingsView: View {
                     }
 
                     section("Experimental", icon: "testtube.2", footer: "Trial features that may disappear.") {
-                        Toggle(isOn: $store.googleNewsCustoms) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Google News custom topics").font(Theme.Text.rowTitle)
-                                Text("Custom columns search Google News instead of NewsFirst sources while this is on.")
-                                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Custom topic engine").font(Theme.Text.rowTitle)
+                            Picker("Custom topic engine", selection: $store.customEngine) {
+                                ForEach(FeedStore.CustomEngine.allCases) { Text($0.label).tag($0) }
                             }
+                            .pickerStyle(.segmented)
+                            Text("Hybrid puts NewsFirst's high-priority matches on top — the ones notifications fire for — and fills the rest from Google News.")
+                                .font(Theme.Text.meta).foregroundStyle(.secondary)
                         }
-                        .toggleStyle(.switch)
-                        .tint(Theme.accent)
                     }
                 }
                 .padding(16)

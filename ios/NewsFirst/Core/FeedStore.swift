@@ -92,10 +92,24 @@ final class FeedStore {
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll() } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
-    /// EXPERIMENT: custom columns from Google News RSS instead of our FTS (Settings toggle).
-    var googleNewsCustoms: Bool {
+    /// Custom-column engine. HYBRID is the default: our corpus's High-priority
+    /// matches lead (the exact stories the push matcher alerts on), Google News
+    /// breadth fills underneath. Long-term the lists merge for real — Google's
+    /// sources become our sources — and this setting retires.
+    enum CustomEngine: String, CaseIterable, Identifiable {
+        case hybrid, corpus, google
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .hybrid: "Hybrid"
+            case .corpus: "NewsFirst only"
+            case .google: "Google News only"
+            }
+        }
+    }
+    var customEngine: CustomEngine {
         didSet {
-            defaults.set(googleNewsCustoms, forKey: "googleNewsCustoms")
+            defaults.set(customEngine.rawValue, forKey: "customEngine")
             customEpoch += 1            // orphan in-flight fetches from the other engine
             enrichQueued.removeAll()
             loadingCustom.removeAll()   // …and unblock an immediate re-search
@@ -103,6 +117,8 @@ final class FeedStore {
             Task { if customTopics.contains(selectedTopic) { await loadCustom(selectedTopic) } }
         }
     }
+    /// True whenever google rows can be present (google or hybrid).
+    var googleNewsCustoms: Bool { customEngine != .corpus }
     /// Bumped whenever the custom-search engine flips: stale fetches check it before
     /// writing, so a toggle mid-flight can't land the old engine's rows afterwards.
     @ObservationIgnored private var customEpoch = 0
@@ -122,8 +138,10 @@ final class FeedStore {
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .auto
         regionPref = RegionBucket(rawValue: defaults.string(forKey: "regionPref") ?? "") ?? .auto
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
-        googleNewsCustoms = defaults.bool(forKey: "googleNewsCustoms")
-        readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
+        // Hybrid is the default for everyone — including migrations from the old
+        // Bool toggle (hybrid supersedes what that toggle was reaching for).
+        customEngine = defaults.string(forKey: "customEngine").flatMap(CustomEngine.init) ?? .hybrid
+        readerMode = defaults.object(forKey: "readerMode") as? Bool ?? false   // opt-in: reader swallowed consent screens
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
         customNotifyLevels = defaults.dictionary(forKey: "customNotifyLevels") as? [String: String] ?? [:]
@@ -691,13 +709,36 @@ final class FeedStore {
     /// keeps already-enriched rows (publisher URL + image) for stories still present
     /// instead of regressing them to imageless.
     private func searchCustom(_ topic: String) async -> [Article]? {
-        if googleNewsCustoms {
+        switch customEngine {
+        case .corpus:
+            return try? await api.searchArticles(matching: topic)
+        case .google:
             guard let fresh = try? await GoogleNewsRSS.fetch(topic: topic) else { return nil }
-            let old = Dictionary((customResults[topic] ?? []).map { ($0.id, $0) },
-                                 uniquingKeysWith: { a, _ in a })
-            return fresh.map { new in old[new.id].flatMap { $0.imageURL != nil ? $0 : nil } ?? new }
+            return keepEnriched(fresh, topic: topic)
+        case .hybrid:
+            // Our High-priority matches lead (they're what the push matcher alerts
+            // on, so the column's top == the notifications), Google fills beneath.
+            async let oursReq = api.searchArticles(matching: topic)
+            async let googleReq = GoogleNewsRSS.fetch(topic: topic)
+            let ours = ((try? await oursReq) ?? []).filter { $0.tier == .high }
+            let google = keepEnriched((try? await googleReq) ?? [], topic: topic)
+            guard !(ours.isEmpty && google.isEmpty) else { return nil }
+            var seen = Set(ours.map { Self.titleKey($0.title) })
+            return ours + google.filter { seen.insert(Self.titleKey($0.title)).inserted }
         }
-        return try? await api.searchArticles(matching: topic)
+    }
+
+    /// Stable content-derived google ids mean a re-search can keep already-enriched
+    /// rows (publisher URL + image) instead of regressing them to imageless.
+    private func keepEnriched(_ fresh: [Article], topic: String) -> [Article] {
+        let old = Dictionary((customResults[topic] ?? []).map { ($0.id, $0) },
+                             uniquingKeysWith: { a, _ in a })
+        return fresh.map { new in old[new.id].flatMap { $0.imageURL != nil ? $0 : nil } ?? new }
+    }
+
+    /// Cheap cross-engine dedupe key: same story, two tellings, one row.
+    private static func titleKey(_ t: String) -> String {
+        String(t.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(40))
     }
 
     /// Google News rows arrive imageless behind a news.google.com redirect: resolve
@@ -706,9 +747,9 @@ final class FeedStore {
     /// update without re-animating. Rows beyond 16 stay lean; the reader resolves
     /// their URL on demand.
     private func enrichGoogle(_ topic: String, epoch: Int) {
-        let batch = (customResults[topic] ?? []).prefix(16).filter {
+        let batch = (customResults[topic] ?? []).filter {
             $0.imageURL == nil && ($0.url.host()?.contains("news.google.com") ?? false)
-        }
+        }.prefix(16)
         guard !batch.isEmpty else { return }
         batch.forEach { enrichQueued.insert($0.id) }
         Task {

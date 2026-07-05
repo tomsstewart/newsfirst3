@@ -107,7 +107,7 @@ struct RootView: View {
             // Store-level smoke test: GN_STORE_SELFTEST=<query> drives the REAL path —
             // toggle on, add/select the topic, loadCustom, then watch enrichment land.
             guard let q = ProcessInfo.processInfo.environment["GN_STORE_SELFTEST"] else { return }
-            store.googleNewsCustoms = true
+            print("GN_STORE_SELFTEST engine=\(store.customEngine.rawValue)")   // seed customEngine in defaults to test others
             if store.customTopics.contains(q) {
                 store.selectedTopic = q
                 Task { await store.loadCustom(q) }

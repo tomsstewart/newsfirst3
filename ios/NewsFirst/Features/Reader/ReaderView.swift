@@ -22,12 +22,16 @@ struct ReaderSheet: View {
         // the page ourselves.
         ZStack(alignment: .bottomTrailing) {
             if let url = resolved {
-                // External pages arrive cold (consent walls, sign-in overlays): Reader
-                // Mode must never swallow those screens — the user needs the real page
-                // to decline. SFSafariViewController is sealed, so opting out of reader
-                // for external rows is the strongest guarantee available.
-                SafariView(url: url, readerMode: store.readerMode && !article.isExternal)
-                    .ignoresSafeArea()
+                if article.isExternal {
+                    // External pages arrive cold (consent walls, sign-in overlays).
+                    // SFSafariViewController is sealed, so external rows get our own
+                    // WKWebView instead: banner-hiding rules + an auto-reject script
+                    // actively decline the common consent frameworks.
+                    ExternalReader(url: url, title: article.sourceName)
+                } else {
+                    SafariView(url: url, readerMode: store.readerMode)
+                        .ignoresSafeArea()
+                }
                 ReaderListenButton(article: article)
                     .padding(.trailing, 16)
                     .padding(.bottom, 60)   // above Safari's own toolbar
@@ -92,6 +96,54 @@ struct ReaderListenButton: View {
 }
 
 #if os(iOS)
+/// Our own browser chrome for pages outside the corpus: WKWebView is scriptable,
+/// so consent banners get hidden AND actively declined (CookieBanners).
+struct ExternalReader: View {
+    let url: URL
+    let title: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title).font(Theme.Text.rowTitle).lineLimit(1)
+                Spacer()
+                Button {
+                    UIApplication.shared.open(url)
+                } label: {
+                    Image(systemName: "safari").font(.footnote.bold()).foregroundStyle(.primary)
+                        .padding(9).background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.primary)
+                        .padding(9).background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Theme.canvas)
+            ExternalWebView(url: url)
+        }
+    }
+}
+
+struct ExternalWebView: UIViewRepresentable {
+    let url: URL
+    func makeUIView(context: Context) -> WKWebView {
+        let cfg = WKWebViewConfiguration()
+        cfg.websiteDataStore = .default()   // a declined banner stays declined
+        let v = WKWebView(frame: .zero, configuration: cfg)
+        v.allowsBackForwardNavigationGestures = true
+        CookieBanners.apply(to: v)
+        v.load(URLRequest(url: url))
+        return v
+    }
+    func updateUIView(_ v: WKWebView, context: Context) {}
+}
+
 struct SafariView: UIViewControllerRepresentable {
     let url: URL
     var readerMode = true
@@ -142,5 +194,32 @@ enum CookieBanners {
             source: "const s=document.createElement('style');s.textContent='html,body{overflow:auto !important}';document.head?.appendChild(s);",
             injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         webView.configuration.userContentController.addUserScript(unfreeze)
+        // Actively DECLINE the frameworks we recognise (hiding alone leaves some
+        // sites gated): known reject-button ids first, then a conservative text
+        // match. Retries briefly — banners mount late. Runs in iframes too
+        // (SourcePoint/guce render there).
+        let autoReject = WKUserScript(source: """
+        (function () {
+          const KNOWN = ['#onetrust-reject-all-handler', '.didomi-continue-without-agreeing',
+            '.qc-cmp2-summary-buttons button[mode=secondary]', 'button.sp_choice_type_13',
+            'button[name=reject]', 'button[value=reject]', '.fc-cta-do-not-consent',
+            '#CybotCookiebotDialogBodyButtonDecline', '.osano-cm-denyAll', '#truste-consent-required'];
+          const PHRASES = /^(reject all|decline all|refuse all|do not consent|continue without (accepting|agreeing)|only necessary|essential only|necessary only)$/i;
+          function attempt() {
+            for (const sel of KNOWN) {
+              const b = document.querySelector(sel);
+              if (b) { b.click(); return true; }
+            }
+            for (const b of document.querySelectorAll('button, [role=button]')) {
+              const t = (b.innerText || '').trim();
+              if (t.length < 40 && PHRASES.test(t)) { b.click(); return true; }
+            }
+            return false;
+          }
+          let tries = 0;
+          const timer = setInterval(() => { if (attempt() || ++tries > 8) clearInterval(timer); }, 700);
+        })();
+        """, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        webView.configuration.userContentController.addUserScript(autoReject)
     }
 }
