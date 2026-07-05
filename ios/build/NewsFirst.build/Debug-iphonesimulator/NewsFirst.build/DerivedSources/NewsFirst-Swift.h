@@ -346,6 +346,8 @@ extern "C" {
 #if __has_warning("-Watimport-in-framework-header")
 #pragma clang diagnostic ignored "-Watimport-in-framework-header"
 #endif
+@import AVFAudio;
+@import ObjectiveC;
 #endif
 
 #endif // defined(__OBJC__)
@@ -367,6 +369,18 @@ extern "C" {
 #endif
 
 #if defined(__OBJC__)
+
+@class AVSpeechSynthesizer;
+@class AVSpeechUtterance;
+/// On-device TTS for the session briefing — “play the news” with zero API cost,
+/// works offline, no quota. One utterance at a time; tapping again stops.
+SWIFT_CLASS("_TtC9NewsFirst6Speech")
+@interface Speech : NSObject <AVSpeechSynthesizerDelegate>
+- (nonnull instancetype)init SWIFT_UNAVAILABLE;
++ (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+- (void)speechSynthesizer:(AVSpeechSynthesizer * _Nonnull)synthesizer didFinishSpeechUtterance:(AVSpeechUtterance * _Nonnull)utterance;
+- (void)speechSynthesizer:(AVSpeechSynthesizer * _Nonnull)synthesizer didCancelSpeechUtterance:(AVSpeechUtterance * _Nonnull)utterance;
+@end
 
 #endif // defined(__OBJC__)
 #if __has_attribute(external_source_symbol)
@@ -724,6 +738,8 @@ extern "C" {
 #if __has_warning("-Watimport-in-framework-header")
 #pragma clang diagnostic ignored "-Watimport-in-framework-header"
 #endif
+@import AVFAudio;
+@import ObjectiveC;
 #endif
 
 #endif // defined(__OBJC__)
@@ -745,6 +761,18 @@ extern "C" {
 #endif
 
 #if defined(__OBJC__)
+
+@class AVSpeechSynthesizer;
+@class AVSpeechUtterance;
+/// On-device TTS for the session briefing — “play the news” with zero API cost,
+/// works offline, no quota. One utterance at a time; tapping again stops.
+SWIFT_CLASS("_TtC9NewsFirst6Speech")
+@interface Speech : NSObject <AVSpeechSynthesizerDelegate>
+- (nonnull instancetype)init SWIFT_UNAVAILABLE;
++ (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
+- (void)speechSynthesizer:(AVSpeechSynthesizer * _Nonnull)synthesizer didFinishSpeechUtterance:(AVSpeechUtterance * _Nonnull)utterance;
+- (void)speechSynthesizer:(AVSpeechSynthesizer * _Nonnull)synthesizer didCancelSpeechUtterance:(AVSpeechUtterance * _Nonnull)utterance;
+@end
 
 #endif // defined(__OBJC__)
 #if __has_attribute(external_source_symbol)

@@ -255,9 +255,42 @@ final class FeedStore {
         return !hasLoadedOnce && articles.isEmpty
     }
 
+    /// The one topic pane that carries this session's AI briefing (set once at launch —
+    /// one overview per session, not one per topic).
+    private(set) var sessionBriefTopic: String?
+
     func start() async {
         loadCache()          // synchronous-fast: feed on screen before any network
+        sessionBriefTopic = selectedTopic
         await refresh()
+    }
+
+    /// Session briefing: custom topics lead (that's what the user hand-picked), then
+    /// the day's high-priority stories from their chosen topics. Hard-capped so the
+    /// spoken version stays under ~30 seconds — succinct, never overwhelming.
+    var personalBriefing: String {
+        var lines: [String] = []
+        for t in customTopics.prefix(3) {
+            if let top = (customResults[t] ?? []).first {
+                lines.append("\(t.capitalized): \(top.title).")
+            }
+        }
+        var seen: Set<String> = []
+        let highs = articles
+            .filter { a in a.tier == .high && a.topics.contains(where: { enabledTopics.contains($0) }) }
+            .filter { a in
+                let key = String(a.title.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(40))
+                return seen.insert(key).inserted
+            }
+            .prefix(3)
+        if !highs.isEmpty {
+            lines.append("Top stories. " + highs.map { $0.title.hasSuffix(".") ? $0.title : $0.title + "." }.joined(separator: " "))
+        }
+        // Thin day and no customs: the server's per-topic overview still beats silence.
+        if lines.isEmpty, let brief = briefs[sessionBriefTopic ?? selectedTopic] {
+            lines.append(brief)
+        }
+        return lines.joined(separator: " ")
     }
 
     func refresh() async {

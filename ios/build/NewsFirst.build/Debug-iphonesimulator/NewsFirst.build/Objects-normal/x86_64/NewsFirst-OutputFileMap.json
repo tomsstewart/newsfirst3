@@ -76,6 +76,16 @@
     "swift-dependencies" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Models.swiftdeps",
     "swiftmodule" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Models~partial.swiftmodule"
   },
+  "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/NewsFirst/Core/Speech.swift" : {
+    "const-values" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.swiftconstvalues",
+    "dependencies" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.d",
+    "diagnostics" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.dia",
+    "index-unit-output-path" : "/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.o",
+    "llvm-bc" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.bc",
+    "object" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.o",
+    "swift-dependencies" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech.swiftdeps",
+    "swiftmodule" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/Speech~partial.swiftmodule"
+  },
   "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/NewsFirst/Core/SupabaseAPI.swift" : {
     "const-values" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/SupabaseAPI.swiftconstvalues",
     "dependencies" : "/Users/temp/Desktop/Claude workspace/newsfirst3/ios/build/NewsFirst.build/Debug-iphonesimulator/NewsFirst.build/Objects-normal/x86_64/SupabaseAPI.d",

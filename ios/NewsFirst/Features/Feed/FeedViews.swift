@@ -20,33 +20,54 @@ struct ArticleImage: View {
 }
 
 
-/// AI overview of the topic's day — generated server-side once daily.
+/// The session briefing: ONE per session (pinned to the launch topic, not per-topic).
+/// Custom topics lead, then high-priority stories from chosen topics; the play button
+/// speaks it — "play the news" with on-device TTS.
 struct BriefCard: View {
     @Environment(FeedStore.self) private var store
+    @State private var speech = Speech.shared
+
     var body: some View {
-        if store.browse == .topics, !store.isCustomSelected,
-           let brief = store.briefs[store.selectedTopic] {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.caption.bold())
-                        .foregroundStyle(Theme.accent)
-                    Text("TODAY'S OVERVIEW")
-                        .font(Theme.Text.badge)
-                        .foregroundStyle(.secondary)
-                        .kerning(0.8)
+        if store.browse == .topics, store.selectedTopic == store.sessionBriefTopic {
+            let text = store.personalBriefing
+            if !text.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.caption.bold())
+                            .foregroundStyle(Theme.accent)
+                        Text("YOUR BRIEFING")
+                            .font(Theme.Text.badge)
+                            .foregroundStyle(.secondary)
+                            .kerning(0.8)
+                        Spacer()
+                        Button {
+                            speech.toggle(text)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
+                                    .font(.caption2.bold())
+                                Text(speech.isSpeaking ? "Stop" : "Play")
+                                    .font(Theme.Text.badge)
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .glassChip(prominent: speech.isSpeaking)
+                            .foregroundStyle(speech.isSpeaking ? .white : Theme.accent)
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                    Text(text)
+                        .font(Theme.Text.excerpt)
+                        .foregroundStyle(.primary.opacity(0.92))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(brief)
-                    .font(Theme.Text.excerpt)
-                    .foregroundStyle(.primary.opacity(0.92))
-                    .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Theme.accent.opacity(0.10))
+                .background(Theme.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.accent.opacity(0.25), lineWidth: 1))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Theme.accent.opacity(0.10))
-            .background(Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.accent.opacity(0.25), lineWidth: 1))
         }
     }
 }

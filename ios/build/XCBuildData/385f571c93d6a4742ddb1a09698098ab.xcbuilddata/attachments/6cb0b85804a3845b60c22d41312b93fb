@@ -1,0 +1,4 @@
+module Inject {
+header "Inject-Swift.h"
+export *
+}
