@@ -112,6 +112,8 @@ final class FeedStore {
             defaults.set(customEngine.rawValue, forKey: "customEngine")
             customEpoch += 1            // orphan in-flight fetches from the other engine
             enrichQueued.removeAll()
+            gnNoImage.removeAll()
+            customFetchedAt.removeAll()
             loadingCustom.removeAll()   // …and unblock an immediate re-search
             customResults = [:]         // drop the other engine's results
             // Refresh EVERY custom column right away — waiting for a visit made the
@@ -130,6 +132,16 @@ final class FeedStore {
     /// source names whose publisher domain was already reported.
     @ObservationIgnored private var gnCountedTopics: Set<String> = []
     @ObservationIgnored private var gnDomainLogged: Set<String> = []
+    @ObservationIgnored private var customFetchedAt: [String: Date] = [:]
+    /// Ids whose enrichment finished WITHOUT an image (og missing/unreachable) —
+    /// observable, so shimmering rows settle into the branded placeholder.
+    private(set) var gnNoImage: Set<UUID> = []
+
+    /// True while a google row's picture may still arrive — rows shimmer instead of
+    /// flashing placeholder → photo.
+    func awaitingImage(_ a: Article) -> Bool {
+        a.isExternal && a.imageURL == nil && googleNewsCustoms && !gnNoImage.contains(a.id)
+    }
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
@@ -657,13 +669,7 @@ final class FeedStore {
             // briefing leads with them, so stale custom results made pull-to-refresh
             // look like it ignored the briefing.
             for t in customTopics {
-                Task {
-                    let epoch = customEpoch
-                    if let results = await searchCustom(t), epoch == customEpoch {
-                        withAnimation(Theme.Motion.feed) { customResults[t] = results }
-                        if googleNewsCustoms { enrichGoogle(t, epoch: epoch) }
-                    }
-                }
+                Task { await loadCustom(t, force: true) }
             }
             dismissedBriefs.removeAll()   // a manual refresh brings dismissed briefings back
             if let fetched = try? await api.fetchBriefs() {
@@ -698,14 +704,23 @@ final class FeedStore {
         }
     }
 
-    func loadCustom(_ topic: String) async {
-        guard customResults[topic] == nil, !loadingCustom.contains(topic) else { return }
+    func loadCustom(_ topic: String, force: Bool = false) async {
+        if force {
+            // Refresh re-search: skip when one is in flight or the results are fresh.
+            // Launch fired refresh() and the first visit's loadCustom simultaneously —
+            // the slower fetch visibly overwrote the faster one seconds later.
+            guard !loadingCustom.contains(topic),
+                  Date.now.timeIntervalSince(customFetchedAt[topic] ?? .distantPast) > 60 else { return }
+        } else {
+            guard customResults[topic] == nil, !loadingCustom.contains(topic) else { return }
+        }
         let epoch = customEpoch
         loadingCustom.insert(topic)
         defer { loadingCustom.remove(topic) }
         // On failure leave nil (retry on next selection) — caching `[]` bricked the
         // topic for the whole session, on the product's flagship feature.
         guard let results = await searchCustom(topic), epoch == customEpoch else { return }
+        customFetchedAt[topic] = .now
         withAnimation(Theme.Motion.feed) { customResults[topic] = results }
         if googleNewsCustoms { enrichGoogle(topic, epoch: epoch) }
     }
@@ -798,7 +813,11 @@ final class FeedStore {
                 for e in enriched {
                     if let idx = rows.firstIndex(where: { $0.id == e.id }) { rows[idx] = e }
                 }
-                customResults[topic] = rows
+                // Attempted but imageless (failed resolve, or the page has no og:image):
+                // stop the shimmer — these rows settle into the branded placeholder.
+                let landed = Dictionary(enriched.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                for a in chunk where landed[a.id]?.imageURL == nil { gnNoImage.insert(a.id) }
+                withAnimation(.easeInOut(duration: 0.3)) { customResults[topic] = rows }
             }
         }
     }
@@ -814,11 +833,14 @@ final class FeedStore {
         enrichQueued.insert(a.id)
         let epoch = customEpoch
         Task {
-            guard let e = await GoogleNewsRSS.enrich(a) else { return }
+            let e = await GoogleNewsRSS.enrich(a)
             guard epoch == customEpoch, googleNewsCustoms, var rows = customResults[t] else { return }
-            logGNDomains([e])
-            if let i = rows.firstIndex(where: { $0.id == e.id }) { rows[i] = e }
-            customResults[t] = rows
+            if let e {
+                logGNDomains([e])
+                if let i = rows.firstIndex(where: { $0.id == e.id }) { rows[i] = e }
+            }
+            if e?.imageURL == nil { gnNoImage.insert(a.id) }
+            withAnimation(.easeInOut(duration: 0.3)) { customResults[t] = rows }
         }
     }
 

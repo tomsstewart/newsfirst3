@@ -6,6 +6,7 @@ import Inject
 // MARK: - Article image (proxied, cached, honest fallback)
 
 struct ArticleImage: View {
+    @Environment(FeedStore.self) private var store
     let article: Article
     let width: Int
     var body: some View {
@@ -13,6 +14,10 @@ struct ArticleImage: View {
             Image(decorative: cg, scale: 2).resizable().aspectRatio(contentMode: .fill)
         } else if let url = ImageProxy.url(article.imageURL, width: width) {
             CachedImage(url: url, topicFallback: article.topics.first ?? "news")
+        } else if store.awaitingImage(article) {
+            // Google rows arrive imageless while enrichment runs: shimmer, then the
+            // photo fades in — never placeholder → photo whiplash.
+            Rectangle().fill(.primary.opacity(0.06)).shimmer()
         } else {
             TopicPlaceholder(topic: article.topics.first ?? "news")
         }

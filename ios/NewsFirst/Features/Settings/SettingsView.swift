@@ -192,12 +192,9 @@ struct SettingsView: View {
                     section("Experimental", icon: "testtube.2", footer: "Trial features that may disappear.") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Custom topic engine").font(Theme.Text.rowTitle)
-                            Picker("Custom topic engine", selection: $store.customEngine) {
-                                ForEach(FeedStore.CustomEngine.allCases) { Text($0.label).tag($0) }
+                            ForEach(FeedStore.CustomEngine.allCases) { engine in
+                                EngineOptionRow(engine: engine)
                             }
-                            .pickerStyle(.segmented)
-                            Text("Hybrid puts NewsFirst's high-priority matches on top — the ones notifications fire for — and fills the rest from Google News.")
-                                .font(Theme.Text.meta).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -547,6 +544,63 @@ struct StudioVoiceControls: View {
 }
 
 /// Wrapping chip grid for topic toggles.
+/// One colour-coded engine choice: tinted surface, radio check, plain-words blurb.
+struct EngineOptionRow: View {
+    @Environment(FeedStore.self) private var store
+    let engine: FeedStore.CustomEngine
+
+    var body: some View {
+        let selected = store.customEngine == engine
+        Button {
+            withAnimation(Theme.Motion.snappy) { store.customEngine = engine }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: engine.icon)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(engine.tint)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(engine.label).font(Theme.Text.rowTitle).foregroundStyle(.primary)
+                    Text(engine.blurb).font(Theme.Text.meta).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? engine.tint : .secondary)
+            }
+            .padding(10)
+            .background(engine.tint.opacity(selected ? 0.14 : 0.05), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(selected ? engine.tint.opacity(0.6) : Theme.panelBorder, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+extension FeedStore.CustomEngine {
+    var tint: Color {
+        switch self {
+        case .hybrid: Theme.accent
+        case .corpus: Theme.tierLow
+        case .google: Color(red: 0.95, green: 0.45, blue: 0.15)
+        }
+    }
+    var icon: String {
+        switch self {
+        case .hybrid: "arrow.trianglehead.merge"
+        case .corpus: "newspaper.fill"
+        case .google: "globe"
+        }
+    }
+    var blurb: String {
+        switch self {
+        case .hybrid: "High-priority NewsFirst stories on top — the ones alerts fire for — Google News breadth underneath."
+        case .corpus: "Only NewsFirst's own sources. Fast, ranked, clustered."
+        case .google: "Only Google News search results. Widest reach, no priorities."
+        }
+    }
+}
+
 struct FlowChips: View {
     let items: [String]
     let isOn: (String) -> Bool
