@@ -40,11 +40,13 @@ struct SupabaseAPI {
         ])
     }
 
-    /// Custom topic = keyword search across title/excerpt (server-side), ranked as usual.
+    /// Custom topic = full-text search across title+excerpt (server-side, websearch
+    /// semantics: word-boundary matches, stemming, multi-word AND) — `ilike *apple*`
+    /// matched "pineapple", which is below the floor for the flagship feature.
     func searchArticles(matching query: String, limit: Int = 80) async throws -> [Article] {
         let q = query.replacingOccurrences(of: ",", with: " ").trimmingCharacters(in: .whitespaces)
         return try await get([
-            .init(name: "or", value: "(title.ilike.*\(q)*,excerpt.ilike.*\(q)*)"),
+            .init(name: "fts", value: "wfts(english).\(q)"),
             .init(name: "select", value: Self.fields),
             .init(name: "order", value: "published_at.desc"),
             .init(name: "limit", value: String(limit)),

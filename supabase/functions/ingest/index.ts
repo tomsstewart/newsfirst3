@@ -64,17 +64,36 @@ const hdrs = (env: Env) => ({
 });
 
 // ---------- scoring (write-once; mirrors strategy §7.3) ----------
-// Word-bounded: bare `includes` matched war→award/warning, dies→studies/bodies, breach→breaching.
-const HARD_BOOSTS = [/\bbreaking\b/i, /\bexclusive\b/i, /\bjust in\b/i, /\bbreach(es|ed)?\b/i, /\boutages?\b/i, /\bresigns\b/i, /\bdies\b/i, /\bwars?\b/i, /\belection results?\b/i];
+// Keyword boosts retired (ranking v2): multi-source cluster velocity is the importance
+// signal now — computed in Postgres (assign_clusters + feed view), immune to headline
+// keyword games. Demotions stay: listicles/deals are low-value regardless of sources.
 const DEMOTE = [/\bdeal(s)?\b.*\b(save|off|discount)\b/i, /\btop \d+\b/i, /\bbest .* to buy\b/i, /\breview\b:?/i, /\bhow to\b/i];
 
 export function baseScore(title: string, weight: number): { score: number; breakdown: Record<string, number> } {
   const b: Record<string, number> = {};
   b.source = weight >= 5 ? 30 : weight === 4 ? 20 : weight === 3 ? 10 : 5;
-  if (HARD_BOOSTS.some((re) => re.test(title))) b.boost = 30;
   if (DEMOTE.some((re) => re.test(title))) b.demoted = -100;
   const score = Math.max(0, Math.min(100, Object.values(b).reduce((a, x) => a + x, 0)));
   return { score, breakdown: b };
+}
+
+// Conservative keyword hints: a zero-cost topic layer between "which feed is this from"
+// and the quota-limited Gemini pass. High-precision terms only — a wrong topic is worse
+// than a missing one. Articles hinted here reach 2 topics and skip enrichment (saves quota).
+const TOPIC_HINTS: [string, RegExp][] = [
+  ["ai", /\b(ai|artificial intelligence|openai|chatgpt|anthropic|claude|gemini|llms?|machine learning)\b/i],
+  ["crypto", /\b(bitcoin|btc|ethereum|crypto(currenc\w*)?|blockchain|stablecoins?|defi)\b/i],
+  ["climate", /\b(climate|heatwaves?|wildfires?|emissions|global warming|drought|el ni[ñn]o)\b/i],
+  ["space", /\b(nasa|spacex|rockets?|asteroids?|orbit(al)?|mars|satellites?|telescope)\b/i],
+  ["health", /\b(cancer|vaccines?|nhs|diabetes|obesity|mental health|outbreak|virus)\b/i],
+  ["economics", /\b(inflation|gdp|interest rates?|central bank|recession|tariffs?|federal reserve)\b/i],
+  ["sports", /\b(premier league|nba|nfl|olympics?|world cup|grand slam|formula 1|f1)\b/i],
+  ["gaming", /\b(playstation|ps5|xbox|nintendo|steam deck|esports)\b/i],
+];
+
+export function hintTopics(title: string, category: string): string[] {
+  const hit = TOPIC_HINTS.find(([topic, re]) => topic !== category && re.test(title));
+  return hit ? [category, hit[0]] : [category];
 }
 
 // ---------- RSS/Atom parsing (tolerant, dependency-free) ----------
@@ -253,7 +272,7 @@ async function ingestTick(env: Env): Promise<void> {
           url, url_hash: await sha256(url), title: p.title.slice(0, 300),
           excerpt: p.description?.slice(0, 500) ?? null,
           image_url: p.image ?? null, published_at: published, source_id: src.id,
-          topics: [src.category], entities: [], regions: src.region ? [src.region] : [],
+          topics: hintTopics(p.title, src.category), entities: [], regions: src.region ? [src.region] : [],
           base_score: score, score_breakdown: breakdown, lang: null,
         });
       }
