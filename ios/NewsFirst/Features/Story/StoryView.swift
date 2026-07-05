@@ -1,0 +1,104 @@
+import SwiftUI
+
+/// Full Coverage: one story, every telling — the industry pattern (Google News):
+/// dedupe the feed to one representative per cluster, then give the cluster its own
+/// page listing all sources chronologically, each opening in the reader.
+struct StoryView: View {
+    let seed: Article
+    @Environment(FeedStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var coverage: [Article] = []
+    @State private var reading: Article?
+    private let api = SupabaseAPI()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ArticleImage(article: seed, width: 800)
+                        .frame(height: 190)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    Text(seed.title)
+                        .font(Theme.Text.hero)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        TierBadge(tier: seed.tier, loud: true)
+                        Text("\(max(coverage.count, seed.clusterSources ?? 1)) sources")
+                            .font(Theme.Text.meta).foregroundStyle(.secondary)
+                        if let first = coverage.first {
+                            Text("· first reported \(first.publishedAt, format: .relative(presentation: .named))")
+                                .font(Theme.Text.meta).foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("COVERAGE TIMELINE")
+                        .font(Theme.Text.badge).foregroundStyle(.secondary).kerning(0.8)
+                        .padding(.top, 6)
+                    if coverage.isEmpty {
+                        HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
+                    } else {
+                        ForEach(coverage) { a in coverageRow(a) }
+                    }
+                }
+                .padding(16)
+                .padding(.bottom, 30)
+            }
+        }
+        .background(Theme.canvas)
+        .task {
+            guard let cid = seed.clusterID else { coverage = [seed]; return }
+            coverage = (try? await api.fetchCluster(cid)) ?? [seed]
+        }
+        #if os(iOS)
+        .fullScreenCover(item: $reading) { ReaderSheet(article: $0) }
+        #else
+        .sheet(item: $reading) { ReaderSheet(article: $0) }
+        #endif
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Full Coverage").font(Theme.Text.headline)
+            Spacer()
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.bold())
+                    .foregroundStyle(.primary)
+                    .padding(9)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(Theme.canvas)
+    }
+
+    private func coverageRow(_ a: Article) -> some View {
+        Button { reading = a } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(a.sourceName)
+                        .font(Theme.Text.badge)
+                        .foregroundStyle(Theme.accent)
+                        .kerning(0.4)
+                    Spacer()
+                    Text(a.publishedAt, format: .relative(presentation: .named))
+                        .font(Theme.Text.meta).foregroundStyle(.secondary)
+                }
+                Text(a.title)
+                    .font(Theme.Text.rowTitle)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Theme.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+    }
+}

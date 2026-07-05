@@ -1,7 +1,9 @@
+import AuthenticationServices
 import SwiftUI
 
-/// Sign-in: email code works end-to-end today; Apple/Google activate once the
-/// app's signing capabilities exist (Apple Developer portal — needs the account owner).
+/// Sign-in: email code + native Apple + Google (web flow). Apple works on the
+/// simulator now; device builds need the portal capability. Google lights up once
+/// its OAuth client is configured in Supabase.
 struct AuthView: View {
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -28,10 +30,41 @@ struct AuthView: View {
             Text("Your topics and alerts sync to your account — and keyword notifications need one.")
                 .font(Theme.Text.excerpt).foregroundStyle(.secondary)
 
-            disabledProviderButton("Continue with Apple", system: "applelogo")
-            disabledProviderButton("Continue with Google", system: "globe")
-            Text("Apple & Google sign-in activate with the next TestFlight build.")
-                .font(Theme.Text.meta).foregroundStyle(.tertiary)
+            SignInWithAppleButton(.continue) { request in
+                request.requestedScopes = [.email]
+            } onCompletion: { result in
+                switch result {
+                case .success(let authorization):
+                    guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                          let tokenData = credential.identityToken,
+                          let idToken = String(data: tokenData, encoding: .utf8) else {
+                        error = "Apple didn't return an identity token"
+                        return
+                    }
+                    finishProvider { try await auth.signInWithApple(idToken: idToken) }
+                case .failure(let e):
+                    if (e as? ASAuthorizationError)?.code != .canceled { error = e.localizedDescription }
+                }
+            }
+            .signInWithAppleButtonStyle(.white)
+            .frame(height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+
+            Button {
+                finishProvider { try await auth.signInWithGoogle() }
+            } label: {
+                HStack {
+                    Image(systemName: "globe")
+                    Text("Continue with Google").font(Theme.Text.cardTitle)
+                    Spacer()
+                    if busy { ProgressView().controlSize(.small) }
+                }
+                .padding(14)
+                .foregroundStyle(.primary)
+                .background(Theme.panel, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
 
             Divider().padding(.vertical, 4)
 
@@ -80,16 +113,19 @@ struct AuthView: View {
         #endif
     }
 
-    private func disabledProviderButton(_ title: String, system: String) -> some View {
-        HStack {
-            Image(systemName: system)
-            Text(title).font(Theme.Text.cardTitle)
-            Spacer()
+    /// Shared tail for provider sign-ins: run the flow, sync topics, close.
+    private func finishProvider(_ flow: @escaping () async throws -> Void) {
+        busy = true; error = nil
+        Task {
+            do {
+                try await flow()
+                await auth.syncTopics(preset: store.enabledTopics, custom: store.customTopics)
+                dismiss()
+            } catch {
+                self.error = error.localizedDescription
+            }
+            busy = false
         }
-        .padding(14)
-        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
-        .opacity(0.45)
     }
 
     private func submit() {

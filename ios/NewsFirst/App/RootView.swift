@@ -38,6 +38,7 @@ struct RootView: View {
         #endif
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showAuth) { AuthView() }
+        .sheet(item: $store.story) { StoryView(seed: $0) }
         .environment(\.openAuth, { showAuth = true })
         .onAppear { Analytics.capture("app_open") }
         .task {
@@ -186,8 +187,8 @@ struct RootView: View {
                 }
             } else {
                 switch store.mode {
-                case .list: ListFeedView(items: items)
-                case .immersive: ImmersiveFeedView(items: items)
+                case .list: ListFeedView(topic: item, items: items)
+                case .immersive: ImmersiveFeedView(topic: item, items: items)
                 case .full: FullFeedView(items: items)
                 }
             }
@@ -261,8 +262,10 @@ struct TopicBar: View {
         let labelContent = HStack(spacing: 5) {
             if custom {
                 Image(systemName: "dot.radiowaves.left.and.right").font(.caption2)
+            } else if topic == FeedStore.topStories {
+                Image(systemName: "flame.fill").font(.caption2)
             }
-            Text(topic.capitalized)
+            Text(FeedStore.displayName(topic))
         }
         .font(Theme.Text.meta)
         return Button {

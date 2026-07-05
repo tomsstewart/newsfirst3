@@ -54,6 +54,25 @@ struct SettingsView: View {
                         }
                     }
 
+                    section("Home region", icon: "globe.europe.africa.fill", footer: "Top Stories leans toward your region's news — Westminster for UK readers, not Brisbane bail laws.") {
+                        HStack(spacing: 8) {
+                            ForEach(RegionBucket.allCases) { r in
+                                let selected = store.regionPref == r
+                                Button {
+                                    withAnimation(Theme.Motion.snappy) { store.regionPref = r }
+                                } label: {
+                                    Text(r == .auto ? "Auto · \(RegionBucket.detected.rawValue)" : r.rawValue)
+                                        .font(Theme.Text.meta)
+                                        .padding(.horizontal, 12).padding(.vertical, 8)
+                                        .glassChip(prominent: selected)
+                                        .foregroundStyle(selected ? .white : .secondary)
+                                }
+                                .buttonStyle(PressableStyle())
+                            }
+                            Spacer()
+                        }
+                    }
+
                     section("Your topics", icon: "square.grid.2x2") {
                         FlowChips(items: FeedStore.presetTopics, isOn: { store.enabledTopics.contains($0) }) { topic, on in
                             withAnimation(Theme.Motion.snappy) {

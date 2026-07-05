@@ -20,35 +20,40 @@ struct ArticleImage: View {
 }
 
 
-/// The session briefing: ONE per session (pinned to the launch topic, not per-topic).
-/// Custom topics lead, then high-priority stories from chosen topics; the play button
-/// speaks it — "play the news" with on-device TTS.
+/// Briefing card: on Top Stories it's the personalized custom-topics-first digest; on
+/// every other topic pane it's that topic's daily server overview (generated ONCE per
+/// day for all users) + the pane's top headlines. Listen = on-device TTS. Zero
+/// marginal AI cost per user, per session, per play.
 struct BriefCard: View {
+    let topic: String
     @Environment(FeedStore.self) private var store
     @State private var speech = Speech.shared
     @State private var expandedBrief = false
 
+    private var isTop: Bool { topic == FeedStore.topStories }
+
     var body: some View {
-        if store.browse == .topics, store.selectedTopic == store.sessionBriefTopic, !store.briefDismissed {
-            let text = store.personalBriefing
+        if store.browse == .topics, !store.dismissedBriefs.contains(topic) {
+            let parts = store.topicBriefingParts(topic)
+            let text = parts.joined(separator: " ")
             if !text.isEmpty {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles")
                             .font(.caption.bold())
                             .foregroundStyle(Theme.accent)
-                        Text("YOUR BRIEFING")
+                        Text(isTop ? "YOUR BRIEFING" : "\(FeedStore.displayName(topic).uppercased()) · TODAY")
                             .font(Theme.Text.badge)
                             .foregroundStyle(.secondary)
                             .kerning(0.8)
                         Spacer()
                         Button {
-                            speech.toggle(store.personalBriefingParts)
+                            speech.toggle(parts)
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
                                     .font(.caption2.bold())
-                                Text(speech.isSpeaking ? "Stop" : "Play")
+                                Text(speech.isSpeaking ? "Stop" : "Listen")
                                     .font(Theme.Text.badge)
                             }
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -58,8 +63,8 @@ struct BriefCard: View {
                         .buttonStyle(PressableStyle())
                         Button {
                             speech.stop()   // dismissing also stops playback
-                            withAnimation(Theme.Motion.card) { store.briefDismissed = true }
-                            Analytics.capture("briefing_dismiss")
+                            withAnimation(Theme.Motion.card) { store.dismissBrief(topic) }
+                            Analytics.capture("briefing_dismiss", ["topic": topic])
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.caption2.bold())
@@ -106,6 +111,7 @@ struct BriefCard: View {
 
 struct ListFeedView: View {
     @Environment(FeedStore.self) private var store
+    let topic: String
     let items: [Article]
     @State private var expandedID: UUID?
     @State private var lowHidden = false
@@ -121,7 +127,7 @@ struct ListFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
-                BriefCard().kineticEntrance(0)
+                BriefCard(topic: topic).kineticEntrance(0)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
                         .kineticEntrance(bandIndex * 3)
@@ -189,6 +195,7 @@ struct OverlayCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     if showTier { TierBadge(tier: article.tier, loud: true) }
+                    CoverageChip(article: article)
                     ScoreDebugBadge(article: article)
                 }
                 Text(article.title)
@@ -287,7 +294,11 @@ struct ListRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                SourceLine(article: article).padding(.top, 4)
+                HStack(spacing: 8) {
+                    CoverageChip(article: article, compact: true)
+                    SourceLine(article: article)
+                }
+                .padding(.top, 4)
             }
         }
         .fixedSize(horizontal: false, vertical: true)   // row height = text column's ideal; image fills it
@@ -304,6 +315,7 @@ struct ListRow: View {
 
 struct ImmersiveFeedView: View {
     @Environment(FeedStore.self) private var store
+    let topic: String
     let items: [Article]
     @State private var lowHidden = false
 
@@ -317,7 +329,7 @@ struct ImmersiveFeedView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 13) {
-                BriefCard().kineticEntrance(0)
+                BriefCard(topic: topic).kineticEntrance(0)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     PriorityBand(tier: band.tier)
                         .kineticEntrance(bandIndex * 3)
@@ -514,6 +526,33 @@ struct LoadMoreButton: View {
         }
         .buttonStyle(PressableStyle())
         .padding(.top, 12)
+    }
+}
+
+/// Google News-style Full Coverage affordance: shows when a story is corroborated by
+/// 2+ independent sources; taps into the cluster's dedicated story page.
+struct CoverageChip: View {
+    @Environment(FeedStore.self) private var store
+    let article: Article
+    var compact = false
+
+    var body: some View {
+        if let n = article.clusterSources, n >= 2 {
+            Button {
+                store.story = article
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "square.stack.3d.up.fill").font(.system(size: 8, weight: .bold))
+                    Text(compact ? "\(n) sources" : "Full coverage · \(n)")
+                }
+                .font(Theme.Text.badge)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.45), lineWidth: 1))
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(PressableStyle())
+        }
     }
 }
 

@@ -25,9 +25,35 @@ enum Appearance: String, CaseIterable, Identifiable {
 /// Cache-first article store — the cold-start budget (<400ms to first feed frame) lives here.
 /// One network fetch serves every preset topic (client-side filter), so topic switching is
 /// instant; custom topics search server-side and cache per keyword.
+/// Home-market bucket for locale weighting (auto-detected, overridable in Settings).
+enum RegionBucket: String, CaseIterable, Identifiable {
+    case auto = "Auto", us = "US", uk = "UK", anz = "Australasia"
+    var id: String { rawValue }
+
+    var countryCodes: Set<String> {
+        switch self {
+        case .us: ["US"]
+        case .uk: ["GB", "IE"]
+        case .anz: ["AU", "NZ"]
+        case .auto: []
+        }
+    }
+    static var detected: RegionBucket {
+        switch Locale.current.region?.identifier {
+        case "US", "CA": .us
+        case "AU", "NZ": .anz
+        default: .uk   // GB/IE and the sensible default for this app's audience
+        }
+    }
+}
+
 @Observable @MainActor
 final class FeedStore {
     static let presetTopics = ["world", "business", "economics", "tech", "ai", "science", "sports", "crypto", "gaming", "entertainment", "space", "climate", "health", "travel"]
+
+    /// The pinned first pane: the whole ranked feed, locale-weighted. Not a server
+    /// topic — everything already ingested serves it.
+    static let topStories = "top"
 
     private(set) var articles: [Article] = [] { didSet { rankedCache.removeAll() } }   // whole ranked feed
     private(set) var customResults: [String: [Article]] = [:] { didSet { rankedCache.removeAll() } }  // custom topic -> results
@@ -57,6 +83,7 @@ final class FeedStore {
     var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics"); validateSelection() } }
     var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources"); rankedCache.removeAll() } }
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
+    var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll() } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
@@ -67,26 +94,56 @@ final class FeedStore {
 
     init() {
         customTopics = defaults.stringArray(forKey: "customTopics") ?? []
-        enabledTopics = defaults.stringArray(forKey: "enabledTopics") ?? Array(Self.presetTopics.prefix(8))
+        enabledTopics = defaults.stringArray(forKey: "enabledTopics") ?? Array(Self.presetTopics.dropFirst().prefix(7))
         disabledSources = Set(defaults.stringArray(forKey: "disabledSources") ?? [])
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .auto
+        regionPref = RegionBucket(rawValue: defaults.string(forKey: "regionPref") ?? "") ?? .auto
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         mode = defaultMode
+        // One-time: Top Stories supersedes World as the home pane (world stays available
+        // in Settings for anyone who re-adds it).
+        if !defaults.bool(forKey: "migratedTopStories") {
+            enabledTopics.removeAll { $0 == "world" }
+            defaults.set(true, forKey: "migratedTopStories")
+            selectedTopic = Self.topStories
+        }
         validateSelection()
+    }
+
+    /// User's home-market country codes (auto = locale-detected).
+    var homeCodes: Set<String> {
+        (regionPref == .auto ? RegionBucket.detected : regionPref).countryCodes
+    }
+
+    /// Countries that clearly belong to SOME home market — stories exclusively about a
+    /// different one get demoted (Brisbane bail laws matter less in Birmingham).
+    private static let marketCodes: Set<String> = ["US", "CA", "GB", "IE", "AU", "NZ"]
+
+    private func regionAdjust(_ a: Article, home: Set<String>) -> Double {
+        guard let regions = a.regions, !regions.isEmpty else { return 0 }
+        let r = Set(regions)
+        if !r.isDisjoint(with: home) { return 12 }              // my market's story
+        if r.isSubset(of: Self.marketCodes) { return -8 }       // exclusively someone else's market
+        return 0                                                 // world news stays neutral
     }
 
     /// The selected topic must always exist in the bar — otherwise no chip highlights,
     /// the pill vanishes and swipes dead-end (e.g. after disabling the selected topic).
     private func validateSelection() {
         if browse == .topics, !topicBar.contains(selectedTopic) {
-            selectedTopic = topicBar.first ?? "world"
+            selectedTopic = topicBar.first ?? Self.topStories
         }
     }
 
-    var topicBar: [String] { enabledTopics + customTopics }
+    var topicBar: [String] { [Self.topStories] + enabledTopics + customTopics }
     var sourceBar: [String] { sources.map(\.name) }
+
+    /// Chip / card display name.
+    static func displayName(_ topic: String) -> String {
+        topic == topStories ? "Top Stories" : topic.capitalized
+    }
 
     /// Called when a preset topic or source shows empty — targeted server fetch fills it.
     func backfillIfSparse() async {
@@ -102,6 +159,7 @@ final class FeedStore {
             }
         } else if !isCustomSelected {
             let t = selectedTopic
+            guard t != Self.topStories else { return }   // the whole feed can't be sparse
             // Backfill thin topics too, not just empty ones — every section deserves a full page.
             guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return }
             if let fetched = try? await api.fetchTopic(t) {
@@ -173,6 +231,15 @@ final class FeedStore {
             withAnimation(Theme.Motion.feed) {
                 sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
             }
+        } else if selectedTopic == Self.topStories {
+            // Top Stories pages the whole feed; refresh() already pulled the first 350.
+            let effectiveOffset = max(offset, articles.count)
+            guard let extra = try? await api.fetchFeed(limit: Self.pageSize, offset: effectiveOffset) else { return }
+            serverOffsets[key] = effectiveOffset + extra.count
+            if extra.count < Self.pageSize { exhaustedKeys.insert(key) }
+            withAnimation(Theme.Motion.feed) {
+                topicExtra[Self.topStories, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            }
         } else if !isCustomSelected {
             guard let extra = try? await api.fetchTopic(selectedTopic, limit: Self.pageSize, offset: offset) else { return }
             serverOffsets[key] = offset + extra.count
@@ -226,14 +293,22 @@ final class FeedStore {
         let base: [Article]
         if customTopics.contains(topic) {
             base = customResults[topic] ?? []
+        } else if topic == Self.topStories {
+            // Everything, locale-weighted — the whole ranked feed IS the home pane.
+            let extra = (topicExtra[topic] ?? []).filter { e in !articles.contains(where: { $0.id == e.id }) }
+            base = articles + extra
         } else {
             let local = articles.filter { $0.topics.contains(topic) }
             base = local.isEmpty ? (topicExtra[topic] ?? []) : local + (topicExtra[topic] ?? []).filter { e in !local.contains(where: { $0.id == e.id }) }
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
+        let home = homeCodes
         let ranked = filtered.sorted {
-            // score first; among peers prefer image-bearing (beautiful sections), then freshness
-            if $0.score != $1.score { return $0.score > $1.score }
+            // locale-adjusted score first (a Brisbane bail story shouldn't outrank a
+            // Westminster one for a UK reader); among peers prefer image-bearing, then freshness
+            let l = $0.score + regionAdjust($0, home: home)
+            let r = $1.score + regionAdjust($1, home: home)
+            if l != r { return l > r }
             if ($0.imageURL != nil) != ($1.imageURL != nil) { return $0.imageURL != nil }
             return $0.publishedAt > $1.publishedAt
         }
@@ -241,12 +316,17 @@ final class FeedStore {
     }
 
     /// Same story from many feeds: keep the best-ranked telling, drop echoes.
+    /// Cluster identity first (server-side semantic dedup), title-prefix fallback.
     private func collapseDuplicates(_ input: [Article]) -> [Article] {
-        var seen: Set<String> = []
+        var seenClusters: Set<UUID> = []
+        var seenTitles: Set<String> = []
         return input.filter { a in
+            if let c = a.clusterID {
+                guard seenClusters.insert(c).inserted else { return false }
+            }
             let key = String(a.title.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(56))
             guard !key.isEmpty else { return true }
-            return seen.insert(key).inserted
+            return seenTitles.insert(key).inserted
         }
     }
 
@@ -255,25 +335,43 @@ final class FeedStore {
         return !hasLoadedOnce && articles.isEmpty
     }
 
-    /// The one topic pane that carries this session's AI briefing (set once at launch —
-    /// one overview per session, not one per topic).
-    private(set) var sessionBriefTopic: String?
+    /// Full Coverage sheet: the seed article whose story cluster is open.
+    var story: Article? {
+        didSet { if story != nil { Analytics.capture("full_coverage_open") } }
+    }
+
+    /// Briefing cards dismissed this session (per topic; fresh launch restores them).
+    private(set) var dismissedBriefs: Set<String> = []
+    func dismissBrief(_ topic: String) { dismissedBriefs.insert(topic) }
 
     func start() async {
         loadCache()          // synchronous-fast: feed on screen before any network
-        sessionBriefTopic = selectedTopic
         await refresh()
     }
 
-    /// Whether this session's briefing was dismissed (session-scoped, not persisted —
-    /// a fresh launch brings the card back).
-    var briefDismissed = false
-
-    /// Session briefing in the assistant "tell me the news" register: greeting, the
+    /// Top Stories briefing in the assistant "tell me the news" register: greeting, the
     /// user's CUSTOM topics with real depth (two stories each, summary sentence on the
     /// lead), then attributed top stories from their chosen topics. Spoken in full;
     /// the card truncates visually.
     var personalBriefing: String { personalBriefingParts.joined(separator: " ") }
+
+    /// Per-topic listen: the server's daily AI overview for the topic (generated ONCE
+    /// per day for all users — zero marginal model cost) + that pane's top headlines.
+    func topicBriefingParts(_ topic: String) -> [String] {
+        if topic == Self.topStories { return personalBriefingParts }
+        var parts: [String] = []
+        if let brief = briefs[topic] { parts.append(brief) }
+        let top = visibleItems(topic: topic, source: "").prefix(3)
+        for (i, a) in top.enumerated() {
+            var line = "From \(a.sourceName): \(Self.sentence(a.title))"
+            if i == 0, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
+            parts.append(line)
+        }
+        guard !parts.isEmpty else { return [] }
+        return ["\(Self.displayName(topic))."] + parts
+    }
+
+    func topicBriefing(_ topic: String) -> String { topicBriefingParts(topic).joined(separator: " ") }
 
     /// Segments, not one blob: the speech engine gives each story its own utterance
     /// with a newsreader beat between them — same text, dramatically better delivery.
@@ -310,8 +408,8 @@ final class FeedStore {
             }
         }
 
-        // Thin day and no customs: the server's per-topic overview still beats silence.
-        if parts.isEmpty, let brief = briefs[sessionBriefTopic ?? selectedTopic] {
+        // Thin day and no customs: any server topic overview still beats silence.
+        if parts.isEmpty, let brief = briefs.values.first {
             parts.append(brief)
         }
         guard !parts.isEmpty else { return [] }

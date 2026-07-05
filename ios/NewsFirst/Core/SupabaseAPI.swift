@@ -7,15 +7,26 @@ struct SupabaseAPI {
     // Publishable key — safe to ship in the client; RLS is the security boundary.
     static let publishableKey = "sb_publishable_zakPOvvP-fVhODt3_hVesA_AIDDGwV7"
 
-    private static let fields = "id,url,title,excerpt,image_url,published_at,topics,source_name,score,tier"
+    private static let fields = "id,url,title,excerpt,image_url,published_at,topics,regions,source_name,score,tier,cluster_id,cluster_sources"
 
     /// Whole ranked feed in one query — all preset topics filter client-side, so switching
     /// topics is instant (zero network).
-    func fetchFeed(limit: Int = 250) async throws -> [Article] {
+    func fetchFeed(limit: Int = 250, offset: Int = 0) async throws -> [Article] {
         try await get([
+            .init(name: "offset", value: String(offset)),
             .init(name: "select", value: Self.fields),
             .init(name: "order", value: "score.desc,published_at.desc"),
             .init(name: "limit", value: String(limit)),
+        ])
+    }
+
+    /// Every telling of one story — the Full Coverage page.
+    func fetchCluster(_ clusterID: UUID) async throws -> [Article] {
+        try await get([
+            .init(name: "cluster_id", value: "eq.\(clusterID.uuidString.lowercased())"),
+            .init(name: "select", value: Self.fields),
+            .init(name: "order", value: "published_at.asc"),
+            .init(name: "limit", value: "40"),
         ])
     }
 

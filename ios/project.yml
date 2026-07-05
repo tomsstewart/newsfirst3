@@ -22,6 +22,10 @@ targets:
     platform: iOS
     scheme: {}   # resource-bundle codesign needs scheme+destination builds, not -target -sdk
     sources: [NewsFirst]
+    entitlements:
+      path: NewsFirst/NewsFirst.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]   # honored on sim now; device needs the portal capability
     dependencies:
       - package: Inject
       - package: MisakiSwift

@@ -8,17 +8,22 @@ struct Article: Codable, Identifiable, Hashable {
     let imageURL: URL?
     let publishedAt: Date
     let topics: [String]
+    let regions: [String]?          // ISO-3166 alpha-2 the story is ABOUT (drives locale weighting)
     let sourceName: String
     let score: Double
     let tier: Tier
+    let clusterID: UUID?            // story identity — one story told by many sources
+    let clusterSources: Int?        // distinct sources in the cluster (≥2 → Full Coverage)
 
     enum Tier: String, Codable { case high, medium, low }
 
     enum CodingKeys: String, CodingKey {
-        case id, url, title, excerpt, topics, score, tier
+        case id, url, title, excerpt, topics, regions, score, tier
         case imageURL = "image_url"
         case publishedAt = "published_at"
         case sourceName = "source_name"
+        case clusterID = "cluster_id"
+        case clusterSources = "cluster_sources"
     }
 }
 
