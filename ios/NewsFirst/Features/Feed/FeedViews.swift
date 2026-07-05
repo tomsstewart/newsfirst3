@@ -74,17 +74,18 @@ struct BriefCard: View {
                         }
                         .buttonStyle(PressableStyle())
                     }
-                    // Clamped by default so the card never dominates the feed;
-                    // tap the text to read the whole briefing in place.
+                    // Collapsed, the card is EXACTLY one list-tile tall (118pt) — it's a
+                    // peer of the tiles, not a billboard. Tap to unfold the full script.
                     Text(text)
                         .font(Theme.Text.excerpt)
                         .foregroundStyle(.primary.opacity(0.92))
-                        .lineLimit(expandedBrief ? nil : 4)
+                        .lineLimit(expandedBrief ? nil : 2)
                         .truncationMode(.tail)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             withAnimation(Theme.Motion.expand) { expandedBrief.toggle() }
                         }
+                    Spacer(minLength: 0)
                     HStack(spacing: 4) {
                         Text(expandedBrief ? "Show less" : "Read it all")
                         Image(systemName: expandedBrief ? "chevron.up" : "chevron.down")
@@ -97,7 +98,8 @@ struct BriefCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                .padding(12)
+                .frame(height: expandedBrief ? nil : 118)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
