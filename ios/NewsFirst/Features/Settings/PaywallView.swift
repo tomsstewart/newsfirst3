@@ -55,7 +55,7 @@ struct PaywallView: View {
                     if buying {
                         ProgressView().tint(.white)
                     } else {
-                        Text("Go Premium — \(ent.product?.displayPrice ?? "£29.99") / year")
+                        Text("Go Premium — \(ent.product?.displayPrice ?? "£3.99") / month")
                     }
                 }
                 .font(Theme.Text.cardTitle)

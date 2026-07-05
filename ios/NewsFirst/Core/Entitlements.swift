@@ -2,12 +2,13 @@ import Foundation
 import Observation
 import StoreKit
 
-/// Premium: unlimited custom topics (3 free). One yearly subscription (strategy:
-/// Pro £29.99/yr). Entitled = StoreKit purchase OR a comped account.
+/// Premium: unlimited custom topics (3 free). One monthly subscription
+/// (£3.99/mo — Tom's call 2026-07-05, supersedes the strategy doc's £29.99/yr).
+/// Entitled = StoreKit purchase OR a comped account.
 @Observable @MainActor
 final class Entitlements {
     static let shared = Entitlements()
-    static let productID = "newsfirst.premium.yearly"
+    static let productID = "newsfirst.premium.monthly"
     static let freeCustomTopics = 3
     /// Comped accounts (founder) — matched against the signed-in email.
     private static let comped: Set<String> = ["tshawstewart@gmail.com"]
