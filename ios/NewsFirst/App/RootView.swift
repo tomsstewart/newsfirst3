@@ -315,7 +315,8 @@ struct TopicBar: View {
     @Environment(FeedStore.self) private var store
     @Namespace private var chipSelection
     @State private var chipFrames: [String: CGRect] = [:]
-    @State private var barScroll: String?   // scrollPosition target — animates as a real scroll
+    @State private var barPos = ScrollPosition()   // id-based settles + offset-based finger tracking
+    @State private var barWidth: CGFloat = 393
     @State private var pillEpoch = 0   // bumped on non-adjacent jumps → pill fades instead of travelling
     @State private var draggedTopic: String?
     @State private var addingTopic = false
@@ -349,20 +350,42 @@ struct TopicBar: View {
                 #endif
             }
             .scrollClipDisabled()
-            // scrollPosition, not proxy.scrollTo: scrollTo re-centres in its own detached
+            // ScrollPosition, not proxy.scrollTo: scrollTo re-centres in its own detached
             // animation that fought the pill/pane transactions — the visible mid-glide jump.
-            .scrollPosition(id: $barScroll, anchor: .center)
+            .scrollPosition($barPos, anchor: .center)
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { barWidth = g.size.width }
+                    .onChange(of: g.size.width) { _, w in barWidth = w }
+            })
             .task { if store.browse == .sources { await store.loadSources() } }
+            // The bar TRACKS the finger: while the panes drag, keep the interpolated
+            // focus point centred (offset-based, un-animated — instant tracking). A
+            // discrete re-centre at release was the "jumps into the middle" jank.
+            .onChange(of: store.swipeProgress) { _, p in
+                guard store.barSelection == nil else { return }   // commit settle owns the scroll
+                let bar = store.browse == .topics ? store.topicBar : store.sourceBar
+                let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+                guard let idx = bar.firstIndex(of: current), let from = chipFrames[current] else { return }
+                if p == 0 {   // cancelled swipe: glide back over the same short distance
+                    withAnimation(Theme.Motion.card) { barPos.scrollTo(id: current, anchor: .center) }
+                    return
+                }
+                let target = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
+                let to = chipFrames[target] ?? from
+                let cx = from.midX + (to.midX - from.midX) * abs(p)
+                barPos.scrollTo(x: cx - barWidth / 2)
+            }
             .onChange(of: store.selectedTopic) { _, sel in
-                withAnimation(Theme.Motion.snappy) { barScroll = sel }
+                withAnimation(Theme.Motion.snappy) { barPos.scrollTo(id: sel, anchor: .center) }
             }
             .onChange(of: store.selectedSource) { _, sel in
-                withAnimation(Theme.Motion.snappy) { barScroll = sel }
+                withAnimation(Theme.Motion.snappy) { barPos.scrollTo(id: sel, anchor: .center) }
             }
             .onChange(of: store.barSelection) { _, sel in
-                // Swipe settle: re-centre on the same curve as the pane glide, so the
-                // bar, pill and panes move as one.
-                if let sel { withAnimation(Theme.Motion.feed) { barScroll = sel } }
+                // Swipe settle: finish the re-centre on the same curve as the pane glide,
+                // continuing from wherever the finger-tracked offset left off.
+                if let sel { withAnimation(Theme.Motion.feed) { barPos.scrollTo(id: sel, anchor: .center) } }
             }
         }
     }

@@ -22,7 +22,11 @@ struct ReaderSheet: View {
         // the page ourselves.
         ZStack(alignment: .bottomTrailing) {
             if let url = resolved {
-                SafariView(url: url, readerMode: store.readerMode)
+                // External pages arrive cold (consent walls, sign-in overlays): Reader
+                // Mode must never swallow those screens — the user needs the real page
+                // to decline. SFSafariViewController is sealed, so opting out of reader
+                // for external rows is the strongest guarantee available.
+                SafariView(url: url, readerMode: store.readerMode && !article.isExternal)
                     .ignoresSafeArea()
                 ReaderListenButton(article: article)
                     .padding(.trailing, 16)
