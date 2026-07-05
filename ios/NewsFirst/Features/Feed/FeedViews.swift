@@ -289,7 +289,7 @@ struct ListRow: View {
                     .lineLimit(2)
                 if let excerpt = article.excerpt, !excerpt.isEmpty {
                     Text(excerpt)
-                        .font(.system(size: 14))     // footnote +1 (Tom, two bumps)
+                        .font(.system(size: 13.5))   // 14 was a touch heavy — settled at footnote +0.5 (Tom)
                         .foregroundStyle(.secondary)
                         .lineLimit(2, reservesSpace: true)   // never fewer than 2 preview lines
                 }
