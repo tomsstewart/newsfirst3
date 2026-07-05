@@ -72,7 +72,12 @@ const hdrs = (env: Env) => ({
 // Keyword boosts retired (ranking v2): multi-source cluster velocity is the importance
 // signal now — computed in Postgres (assign_clusters + feed view), immune to headline
 // keyword games. Demotions stay: listicles/deals are low-value regardless of sources.
-const DEMOTE = [/\bdeal(s)?\b.*\b(save|off|discount)\b/i, /\btop \d+\b/i, /\bbest .* to buy\b/i, /\breview\b:?/i, /\bhow to\b/i];
+const DEMOTE = [
+  /\bdeal(s)?\b.*\b(save|off|discount)\b/i,
+  /\btop \d+\b/i, /\bbest \d+\b/i, /\bbest .* to buy\b/i,
+  /^\d{1,2}\s+\w+(\s+\w+)? (that|to|you|for|worth|every)\b/i,   // "5 desk gadgets that…", "7 ways to…"
+  /\breview\b:?/i, /\bhow to\b/i,
+];
 
 export function baseScore(title: string, weight: number): { score: number; breakdown: Record<string, number> } {
   const b: Record<string, number> = {};
