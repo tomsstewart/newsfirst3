@@ -397,28 +397,29 @@ final class FeedStore {
         let hour = Calendar.current.component(.hour, from: .now)
         let greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
+        // The structure is announced out loud: YOUR topics lead, by design.
+        var customParts: [String] = []
         for t in customTopics.prefix(3) {
             let items = customResults[t] ?? []
             guard let lead = items.first else { continue }
             var line = "On \(t.capitalized) — from \(lead.sourceName): \(Self.sentence(lead.title))"
             if let s = Self.firstSentence(lead.excerpt) { line += " \(s)" }
-            parts.append(line)
+            customParts.append(line)
             if let second = items.dropFirst().first(where: { $0.sourceName != lead.sourceName || $0.title != lead.title }) {
-                parts.append("Also: \(Self.sentence(second.title))")
+                customParts.append("Also: \(Self.sentence(second.title))")
             }
         }
+        if !customParts.isEmpty {
+            parts.append("First, the topics you follow.")
+            parts.append(contentsOf: customParts)
+        }
 
-        var seen: Set<String> = []
-        let highs = articles
-            .filter { a in a.tier == .high && a.topics.contains(where: { enabledTopics.contains($0) }) }
-            .filter { a in
-                let key = String(a.title.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(40))
-                return seen.insert(key).inserted
-            }
-            .prefix(3)
-        if !highs.isEmpty {
-            parts.append(parts.isEmpty ? "The top stories from your topics." : "Now, the top stories from your topics.")
-            for (i, a) in highs.enumerated() {
+        // Then the front page itself — high tier is notification-grade breaking news
+        // now (often empty), so the section reads from the ranked Top Stories pane.
+        let top = visibleItems(topic: Self.topStories, source: "").prefix(3)
+        if !top.isEmpty {
+            parts.append(customParts.isEmpty ? "Today's top stories." : "Now, today's top stories.")
+            for (i, a) in top.enumerated() {
                 var line = "From \(a.sourceName): \(Self.sentence(a.title))"
                 if i < 2, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
                 parts.append(line)
