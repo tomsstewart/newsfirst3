@@ -208,12 +208,31 @@ enum ArticleText {
               (resp as? HTTPURLResponse)?.statusCode == 200,
               let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return [] }
         let scope = firstMatch(in: html, pattern: "<article[\\s\\S]*?</article>") ?? html
-        let blocks = allMatches(in: scope, pattern: "<p[^>]*>([\\s\\S]*?)</p>")
-        return blocks
-            .map(plainText)
-            .filter { $0.count > 60 }                    // skip captions/bylines/cookie shrapnel
+        let blocks = allMatches(in: scope, pattern: "<p[^>]*>([\\s\\S]*?)</p>").map(plainText)
+        // A paragraph counts as BODY if it's substantial and isn't page furniture.
+        let qualifying = blocks.map { $0.count > 60 && !isFurniture($0) }
+        // Body onset: real article bodies start where two substantial paragraphs run
+        // consecutively — everything before that is disclaimers, credits, and banners.
+        var start = qualifying.firstIndex(of: true) ?? blocks.count
+        for i in 0..<(max(qualifying.count, 1) - 1) where qualifying[i] && qualifying[i + 1] {
+            start = i
+            break
+        }
+        return zip(blocks.indices, blocks)
+            .filter { $0.0 >= start && qualifying[$0.0] }
+            .map(\.1)
             .prefix(40)                                   // ~5 minutes of listening, bounded
             .map { $0 }
+    }
+
+    /// Page furniture that must never be read aloud, wherever it appears.
+    private static let furniture = try? NSRegularExpression(pattern:
+        "cookie|consent|subscribe|newsletter|sign (in|up)|advertis|getty images|photograph:|©|copyright|all rights reserved|terms of (use|service)|privacy policy|read more|related:|share this|follow us on|download the app|skip to|min read|support (our|independent) journalism|already have an account|javascript is (not available|disabled)",
+        options: .caseInsensitive)
+
+    private static func isFurniture(_ text: String) -> Bool {
+        guard let furniture else { return false }
+        return furniture.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     private static func firstMatch(in s: String, pattern: String) -> String? {
@@ -242,5 +261,7 @@ enum ArticleText {
             .replacingOccurrences(of: "&nbsp;", with: " ")
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Drop-cap markup splits the opening letter ("H ow unlucky…") — rejoin it.
+            .replacingOccurrences(of: "^([A-Z]) (?=[a-z])", with: "$1", options: .regularExpression)
     }
 }
