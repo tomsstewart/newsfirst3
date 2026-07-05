@@ -11,7 +11,8 @@ let package = Package(
   products: [
     .library(
       name: "MisakiSwift",
-      type: .dynamic,
+      // Static (vendored change): as .dynamic, archives linked @rpath/MisakiSwift.framework
+      // but never embedded it — instant dyld crash on TestFlight installs (and ITMS-90863).
       targets: ["MisakiSwift"]
     ),
   ],
