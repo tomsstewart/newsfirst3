@@ -18,7 +18,6 @@ struct OnboardingView: View {
     @State private var customDraft = ""
     @FocusState private var draftFocused: Bool
     @State private var pulse = false
-    @State private var showAuthSheet = false
     @State private var auth = AuthClient.shared
 
     var body: some View {
@@ -32,10 +31,8 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.canvas)
         .onAppear { Analytics.capture("onboarding_start") }
-        .sheet(isPresented: $showAuthSheet) { AuthView().preferredColorScheme(store.appearance.scheme) }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             if signedIn, page == 2 {
-                showAuthSheet = false
                 Analytics.capture("onboarding_complete", ["signed_in": true])
                 withAnimation(Theme.Motion.feed) { done = true }
             }
@@ -165,20 +162,11 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
             Spacer()
-            Button {
-                showAuthSheet = true
-            } label: {
-                Text("Sign in to start reading")
-                    .font(Theme.Text.cardTitle)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Theme.selectionGradient, in: RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(PressableStyle())
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
-            .onAppear { Analytics.capture("onboarding_auth_gate") }
+            // Providers inline — the sheet-over-onboarding double layer read as rough.
+            ProviderSignInButtons()
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
+                .onAppear { Analytics.capture("onboarding_auth_gate") }
         }
     }
 }

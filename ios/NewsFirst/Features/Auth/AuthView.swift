@@ -1,20 +1,16 @@
-import AuthenticationServices
 import SwiftUI
 
-/// Sign-in: Apple + Google only (Tom's call — email OTP removed 2026-07-05; the
-/// AuthClient flow survives server-side if it's ever wanted back). Apple uses the
-/// system button, Google the official G logo — v2.5's treatment.
+/// Settings-path sign-in sheet, composed like an onboarding page: pulsing brand,
+/// headline, excerpt copy, providers where the CTA lives. (The onboarding gate
+/// itself embeds ProviderSignInButtons inline — no sheet-on-page double layer.)
 struct AuthView: View {
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var auth = AuthClient.shared
-    @State private var busy = false
-    @State private var error: String?
+    @State private var pulse = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 18) {
             HStack {
-                Text("Sign in").font(Theme.Text.headline)
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.footnote.bold())
@@ -24,78 +20,27 @@ struct AuthView: View {
             }
             .padding(.top, 18)
 
-            Text("Your topics, alerts and daily briefing sync to your account.")
-                .font(Theme.Text.excerpt).foregroundStyle(.secondary)
-
+            Spacer()
+            Text("NewsFirst")
+                .font(.system(size: 42, weight: .heavy))
+                .foregroundStyle(Theme.accent)
+                .scaleEffect(pulse ? 1.05 : 0.97)
+                .onAppear { withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true } }
+            Text("Sign in")
+                .font(Theme.Text.headline)
+            Text("Your topics, alerts and daily briefing\nsync to your account.")
+                .font(Theme.Text.excerpt)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             Spacer()
 
-            // A matched pair, the way every app does it: same height, same radius,
-            // both white-on-black-text (Apple's .white style + Google's light spec).
-            SignInWithAppleButton(.continue) { request in
-                request.requestedScopes = [.email]
-            } onCompletion: { result in
-                switch result {
-                case .success(let authorization):
-                    guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                          let tokenData = credential.identityToken,
-                          let idToken = String(data: tokenData, encoding: .utf8) else {
-                        error = "Apple didn't return an identity token"
-                        return
-                    }
-                    finishProvider { try await auth.signInWithApple(idToken: idToken) }
-                case .failure(let e):
-                    if (e as? ASAuthorizationError)?.code != .canceled { error = e.localizedDescription }
-                }
-            }
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: 52)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Button {
-                finishProvider { try await auth.signInWithGoogle() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image("GoogleLogo")
-                        .resizable().scaledToFit()
-                        .frame(width: 20, height: 20)
-                    Text("Continue with Google")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(.black.opacity(0.87))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(.white, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.black.opacity(0.12), lineWidth: 1))
-                .overlay(alignment: .trailing) {
-                    if busy { ProgressView().controlSize(.small).padding(.trailing, 16).tint(.black) }
-                }
-            }
-            .buttonStyle(PressableStyle())
-
-            if let error {
-                Text(error).font(Theme.Text.meta).foregroundStyle(Theme.tierHigh)
-            }
-            Spacer()
+            ProviderSignInButtons(onSignedIn: { dismiss() })
+                .padding(.bottom, 40)
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 24)
         .background(Theme.canvas)
         #if os(macOS)
         .frame(width: 393, height: 620)
         #endif
-    }
-
-    /// Shared tail for provider sign-ins: run the flow, sync topics, close.
-    private func finishProvider(_ flow: @escaping () async throws -> Void) {
-        busy = true; error = nil
-        Task {
-            do {
-                try await flow()
-                await auth.syncTopics(preset: store.enabledTopics, custom: store.customTopics)
-                dismiss()
-            } catch {
-                self.error = error.localizedDescription
-            }
-            busy = false
-        }
     }
 }
