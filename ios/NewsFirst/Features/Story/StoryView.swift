@@ -39,7 +39,15 @@ struct BreakingInboxView: View {
                         .padding(.vertical, 50)
                     } else {
                         ForEach(store.breakingStories) { a in
-                            Button { reading = a } label: {
+                            Button {
+                                // Same landing card as a real push tap (hear it / read it).
+                                // It presents from the root, so the inbox steps aside first.
+                                dismiss()
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(380))
+                                    store.alertLanding = a
+                                }
+                            } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack {
                                         // No tier badge: everything in this panel is high by
