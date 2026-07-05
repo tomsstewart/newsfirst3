@@ -369,11 +369,10 @@ struct ImmersiveFeedView: View {
                     }
                     if !(band.tier == .low && lowHidden && showHeaders) {
                         ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
-                            Button { store.reading = article } label: {
-                                ImmersiveCard(article: article)
-                            }
-                            .buttonStyle(PressableStyle())
-                            .kineticEntrance(bandIndex * 3 + i + 1)
+                            // Card body is inert — only the explicit Read article button
+                            // opens the reader (accidental scroll-taps were opening pages).
+                            ImmersiveCard(article: article)
+                                .kineticEntrance(bandIndex * 3 + i + 1)
                         }
                     }
                 }
