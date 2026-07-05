@@ -301,8 +301,6 @@ struct ListRow: View {
         // v2.5's tile model: FIXED row height, so every image is the identical
         // edge-to-edge portrait — text-driven heights made each thumbnail a different
         // rectangle. Text clamps guarantee fit (2-line title, 2-line excerpt, meta).
-        // Multi-source stories add the coloured full-coverage footer strip below.
-        VStack(spacing: 0) {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(article.title)
@@ -317,7 +315,10 @@ struct ListRow: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                SourceLine(article: article)
+                HStack(spacing: 8) {
+                    CoverageChip(article: article, compact: true)
+                    SourceLine(article: article)
+                }
             }
             .padding(.vertical, 10)
             .padding(.trailing, 10)
@@ -330,8 +331,6 @@ struct ListRow: View {
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
         .frame(height: 118)
-        CoverageFooter(article: article)
-        }
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
@@ -603,29 +602,6 @@ struct TopicHeaderRow: View {
             }
         }
         .padding(.top, 2)
-    }
-}
-
-/// v2.5's coloured tile footer: full-width "View full coverage" strip under the story —
-/// also gives every image the same clean bottom edge to land on.
-struct CoverageFooter: View {
-    @Environment(FeedStore.self) private var store
-    let article: Article
-
-    var body: some View {
-        if let n = article.clusterSources, n >= 2 {
-            Button { store.story = article } label: {
-                HStack(spacing: 5) {
-                    Spacer()
-                    Text("View full coverage · \(n) sources").font(Theme.Text.badge)
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundStyle(Theme.accent)
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Theme.accent.opacity(0.13))
-            }
-            .buttonStyle(PressableStyle())
-        }
     }
 }
 

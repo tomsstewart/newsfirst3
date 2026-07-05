@@ -11,9 +11,50 @@ final class AuthClient {
     private(set) var email: String? = UserDefaults.standard.string(forKey: "authEmail")
     private(set) var accessToken: String? = UserDefaults.standard.string(forKey: "authToken")
     private(set) var userID: String? = UserDefaults.standard.string(forKey: "authUserID")
+    private var refreshToken: String? = UserDefaults.standard.string(forKey: "authRefreshToken")
+    private var expiresAt: Double = UserDefaults.standard.double(forKey: "authExpiresAt")
     var isSignedIn: Bool { accessToken != nil }
 
     private var base: URL { SupabaseAPI.projectURL.appending(path: "auth/v1") }
+
+    /// The token every authed call must use. Access tokens die after ~1h; without this
+    /// the session expired silently and topic sync / device registration just stopped.
+    func validToken() async -> String? {
+        guard let token = accessToken else { return nil }
+        if Date.now.timeIntervalSince1970 < expiresAt - 60 { return token }
+        guard let refresh = refreshToken else { return token }   // pre-refresh session: try our luck
+        var req = URLRequest(url: URL(string: base.appending(path: "token").absoluteString + "?grant_type=refresh_token")!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refresh])
+        guard let (data, resp) = try? await URLSession.shared.data(for: req) else { return token }
+        guard (resp as? HTTPURLResponse)?.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let newToken = json["access_token"] as? String else {
+            // Refresh token revoked/expired: the session is truly dead. Sign out cleanly
+            // rather than let every authed call 401 forever.
+            if (resp as? HTTPURLResponse)?.statusCode == 400 { signOut() }
+            return nil
+        }
+        storeSession(json, fallbackEmail: email)
+        return newToken
+    }
+
+    private func storeSession(_ json: [String: Any], fallbackEmail: String?) {
+        accessToken = json["access_token"] as? String
+        refreshToken = json["refresh_token"] as? String ?? refreshToken
+        if let exp = json["expires_at"] as? Double { expiresAt = exp }
+        else if let ttl = json["expires_in"] as? Double { expiresAt = Date.now.timeIntervalSince1970 + ttl }
+        let user = json["user"] as? [String: Any]
+        if let uid = user?["id"] as? String { userID = uid }
+        email = user?["email"] as? String ?? fallbackEmail
+        UserDefaults.standard.set(accessToken, forKey: "authToken")
+        UserDefaults.standard.set(refreshToken, forKey: "authRefreshToken")
+        UserDefaults.standard.set(expiresAt, forKey: "authExpiresAt")
+        UserDefaults.standard.set(userID, forKey: "authUserID")
+        UserDefaults.standard.set(email, forKey: "authEmail")
+    }
 
     /// Step 1: send a 6-digit code to the email.
     func requestCode(email: String) async throws {
