@@ -55,9 +55,13 @@ struct ReaderListenButton: View {
             guard !preparing else { return }
             preparing = true
             Task {
-                var parts = [article.title] + (await ArticleText.paragraphs(from: article.url))
+                // Reader-view quality first (Mozilla Readability in a hidden WKWebView),
+                // raw-HTML harvest second, feed excerpt as the floor.
+                var body = await ReaderExtractor.shared.extract(article.url)
+                if body.isEmpty { body = await ArticleText.paragraphs(from: article.url) }
+                var parts = [article.title] + body
                 if parts.count == 1, let excerpt = article.excerpt, !excerpt.isEmpty {
-                    parts.append(excerpt)   // paywalled/JS-only page: at least the summary
+                    parts.append(excerpt)   // paywalled page: at least the summary
                 }
                 preparing = false
                 Speech.shared.toggle(parts)

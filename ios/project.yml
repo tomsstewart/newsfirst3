@@ -47,7 +47,7 @@ targets:
         INFOPLIST_KEY_UIBackgroundModes: audio   # briefing keeps playing when the app is backgrounded
         # v3 ships as an UPDATE to the live listing (v2 is at 1.0.4)
         MARKETING_VERSION: "2.0.0"
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2   # build 1 rejected: ITMS-90208 (onnxruntime Info.plist/minos mismatch)
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO   # standard HTTPS only — skips the TestFlight compliance stop
         DEVELOPMENT_TEAM: 6W4ZBLPC9M
         CODE_SIGN_STYLE: Automatic
@@ -59,5 +59,20 @@ targets:
           # InjectionIII hot reload — Debug only: the un-strippable indirect symbols
           # it creates fail the Release archive's strip step.
           OTHER_LDFLAGS: "-Xlinker -interposable"
+    postBuildScripts:
+      - name: Fix onnxruntime MinimumOSVersion
+        basedOnDependencyAnalysis: false
+        script: |
+          # onnxruntime.xcframework ships Info.plist MinimumOSVersion=15.1 but the binary's
+          # LC_BUILD_VERSION minos is 18.0 — App Store validation rejects the mismatch
+          # (ITMS-90208). Align the plist and re-sign the embedded framework.
+          FW="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/onnxruntime.framework"
+          if [ -f "$FW/Info.plist" ]; then
+            /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion ${IPHONEOS_DEPLOYMENT_TARGET}" "$FW/Info.plist" \
+              || /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string ${IPHONEOS_DEPLOYMENT_TARGET}" "$FW/Info.plist"
+            if [ "${CODE_SIGNING_ALLOWED}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+              codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" --preserve-metadata=identifier,entitlements "$FW"
+            fi
+          fi
 # Phase 3 additions: PostHog + supabase-swift packages, push + time-sensitive entitlements,
 # a NotificationService extension target (image pre-caching), RevenueCat in phase 5.
