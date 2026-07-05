@@ -160,12 +160,14 @@ struct StoryView: View {
 
     private func coverageRow(_ a: Article) -> some View {
         Button { reading = a } label: {
-            HStack(alignment: .top, spacing: 10) {
-                // A mixture: imaged tellings get their picture, text-only ones stay lean.
+            HStack(alignment: .center, spacing: 0) {
+                // A mixture: imaged tellings get a tile-sized picture (edge-to-edge,
+                // like the list feed), text-only ones stay lean.
                 if a.imageURL != nil {
-                    ArticleImage(article: a, width: 220)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    ArticleImage(article: a, width: 400)
+                        .frame(width: 100)
+                        .frame(maxHeight: .infinity)
+                        .clipped()
                 }
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
@@ -183,9 +185,10 @@ struct StoryView: View {
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
                 }
+                .padding(12)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
+            .frame(height: a.imageURL != nil ? 96 : nil)
             .background(Theme.panel)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))

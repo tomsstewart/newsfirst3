@@ -113,8 +113,10 @@ final class FeedStore {
             customEpoch += 1            // orphan in-flight fetches from the other engine
             enrichQueued.removeAll()
             loadingCustom.removeAll()   // …and unblock an immediate re-search
-            customResults = [:]         // drop the other engine's results; panes refetch on view
-            Task { if customTopics.contains(selectedTopic) { await loadCustom(selectedTopic) } }
+            customResults = [:]         // drop the other engine's results
+            // Refresh EVERY custom column right away — waiting for a visit made the
+            // toggle feel like it hadn't taken.
+            for t in customTopics { Task { await loadCustom(t) } }
         }
     }
     /// True whenever google rows can be present (google or hybrid).

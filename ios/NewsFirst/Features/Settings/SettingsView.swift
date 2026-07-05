@@ -364,9 +364,14 @@ struct AccountSection: View {
                 LabeledContent("Signed in as", value: auth.email ?? "—")
                     .font(Theme.Text.rowTitle)
                 Button(role: .destructive) { auth.signOut() } label: {
-                    Text("Sign out").font(Theme.Text.rowTitle)
+                    Text("Sign out")
+                        .font(Theme.Text.cardTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Theme.tierHigh.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.tierHigh.opacity(0.45), lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
                 .foregroundStyle(Theme.tierHigh)
             }
         } else {
