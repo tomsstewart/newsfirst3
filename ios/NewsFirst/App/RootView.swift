@@ -54,6 +54,9 @@ struct RootView: View {
             offerVoiceIfDue()
         }
         .onAppear { offerVoiceIfDue() }
+        // Touch the engine at launch: its init seeds the bundled voice into
+        // Application Support (APFS clone, instant), so the first Listen is ready.
+        .onAppear { _ = KokoroEngine.shared }
         .onAppear { Analytics.capture("app_open") }
         .task {
             PushManager.shared.openArticle = { articleID, _ in
