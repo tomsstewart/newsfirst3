@@ -97,13 +97,22 @@ struct CachedImage: View {
             }
         }
         .task(id: url) {
-            if image != nil || failed { return }
-            if let hit = ImagePipeline.cached(url) { image = hit; return }   // sync-fast path: no flash
-            if let loaded = await ImagePipeline.load(url) {
-                image = loaded          // no animation: the picture is part of the panel, not an event
-            } else {
-                failed = true   // per-view only; a fresh mount retries unless truly undecodable
+            // Runs on EVERY appearance — a transient `failed` must not stick for the
+            // session (LazyVStack keeps cell state; one blip froze the placeholder
+            // while the same image loaded fine in Full Coverage's fresh view).
+            if image != nil { return }
+            if ImagePipeline.isKnownDead(url) { failed = true; return }
+            if let hit = ImagePipeline.cached(url) { image = hit; failed = false; return }   // sync-fast path: no flash
+            for attempt in 1...3 {
+                if let loaded = await ImagePipeline.load(url) {
+                    image = loaded      // no animation: the picture is part of the panel, not an event
+                    failed = false
+                    return
+                }
+                if ImagePipeline.isKnownDead(url) { break }
+                try? await Task.sleep(for: .seconds(Double(attempt) * 1.5))   // cancelled on disappear
             }
+            failed = true   // placeholder for now; next appearance retries
         }
     }
 }
