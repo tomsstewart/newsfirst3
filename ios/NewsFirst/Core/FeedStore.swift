@@ -526,7 +526,7 @@ final class FeedStore {
             parts.append(brief)
         }
         guard !parts.isEmpty else { return [] }
-        return ["\(greeting). Here's your briefing."] + parts + ["That's your briefing."]
+        return ["\(greeting)."] + parts + ["That's your briefing."]
     }
 
     private static func sentence(_ s: String) -> String {

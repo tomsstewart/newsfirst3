@@ -149,7 +149,7 @@ struct ListFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 10)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
@@ -379,7 +379,7 @@ struct ImmersiveFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 10)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
