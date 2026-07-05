@@ -135,6 +135,10 @@ struct SettingsView: View {
                         }
                     }
 
+                    section("Briefing voice", icon: "waveform", footer: "The studio voice is a one-time 86 MB download and runs entirely on this device — nothing leaves your phone.") {
+                        StudioVoiceControls()
+                    }
+
                     section("Reading", icon: "doc.plaintext") {
                         Toggle(isOn: $store.readerMode) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -267,6 +271,61 @@ struct AccountSection: View {
                         .background(Theme.selectionGradient, in: Capsule())
                 }
                 .buttonStyle(PressableStyle())
+            }
+        }
+    }
+}
+
+/// Kokoro studio voice: download → progress → voice picker.
+struct StudioVoiceControls: View {
+    @State private var engine = KokoroEngine.shared
+
+    var body: some View {
+        switch engine.state {
+        case .notInstalled, .failed:
+            VStack(alignment: .leading, spacing: 8) {
+                if case .failed(let why) = engine.state {
+                    Text("Download failed: \(why)").font(Theme.Text.meta).foregroundStyle(Theme.tierHigh)
+                }
+                Button { engine.download() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill").font(.footnote)
+                        Text("Download studio voice · 86 MB").font(Theme.Text.rowTitle)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16).padding(.vertical, 9)
+                    .background(Theme.selectionGradient, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                Text("Until then, playback uses the built-in Apple voice.")
+                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+            }
+        case .downloading(let progress):
+            VStack(alignment: .leading, spacing: 6) {
+                ProgressView(value: progress).tint(Theme.accent)
+                Text("Downloading… \(Int(progress * 100))%").font(Theme.Text.meta).foregroundStyle(.secondary)
+            }
+        case .preparing:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Warming up…").font(Theme.Text.meta).foregroundStyle(.secondary)
+            }
+        case .ready:
+            HStack(spacing: 8) {
+                ForEach(KokoroEngine.voices, id: \.id) { v in
+                    let selected = engine.voice == v.id
+                    Button {
+                        withAnimation(Theme.Motion.snappy) { engine.voice = v.id }
+                    } label: {
+                        Text(v.label)
+                            .font(Theme.Text.meta)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .glassChip(prominent: selected)
+                            .foregroundStyle(selected ? .white : .secondary)
+                    }
+                    .buttonStyle(PressableStyle())
+                }
+                Spacer()
             }
         }
     }

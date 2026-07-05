@@ -1,0 +1,4 @@
+module OnnxRuntimeBindings {
+umbrella "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/onnxruntime-swift-package-manager/objectivec/include"
+export *
+}

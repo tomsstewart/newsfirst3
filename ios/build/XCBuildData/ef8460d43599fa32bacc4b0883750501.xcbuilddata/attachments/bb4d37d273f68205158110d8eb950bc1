@@ -1,0 +1,189 @@
+{
+  "" : {
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/MLXNN-primary.dia",
+    "emit-module-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/MLXNN-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/MLXNN-primary-emit-module.dia",
+    "pch" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/MLXNN-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/MLXNN-primary.swiftdeps"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Activations.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Activations~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Cache.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Cache~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Containers.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Containers~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Convolution.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Convolution~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/ConvolutionTransposed.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ConvolutionTransposed~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Dropout.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Dropout~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Embedding.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Embedding~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Linear.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Linear~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Losses.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Losses~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Module.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Module~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Normalization.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Normalization~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Pooling.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Pooling~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/PositionalEncoding.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/PositionalEncoding~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Quantized.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Quantized~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Recurrent.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Recurrent~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Transformer.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Transformer~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/Upsample.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/Upsample~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/Source/MLXNN/ValueAndGrad.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.dia",
+    "index-unit-output-path" : "/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Debug-iphonesimulator/MLXNN.build/Objects-normal/arm64/ValueAndGrad~partial.swiftmodule"
+  }
+}

@@ -40,6 +40,18 @@ struct RootView: View {
         .sheet(isPresented: $showAuth) { AuthView() }
         .environment(\.openAuth, { showAuth = true })
         .onAppear { Analytics.capture("app_open") }
+        .task {
+            // Headless smoke test for the studio voice (CI/sim): KOKORO_SELFTEST=1.
+            guard ProcessInfo.processInfo.environment["KOKORO_SELFTEST"] == "1" else { return }
+            do {
+                let clock = ContinuousClock()
+                let start = clock.now
+                let samples = try await KokoroEngine.shared.synthesize("Good morning. Here's your briefing. On Bitcoin, from CoinDesk: prices rallied overnight as whales accumulated.")
+                print("KOKORO_SELFTEST ok samples=\(samples.count) audioSecs=\(Double(samples.count) / 24_000) elapsed=\(clock.now - start)")
+            } catch {
+                print("KOKORO_SELFTEST FAILED: \(error)")
+            }
+        }
         .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
             await store.backfillIfSparse()
         }

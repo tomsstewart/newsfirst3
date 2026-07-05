@@ -39,16 +39,23 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
 
     private var remaining = 0
 
+    // Kokoro playback path
+    private var kokoroTask: Task<Void, Never>?
+    private let audioEngine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var engineWired = false
+
     func stop() {
         guard isSpeaking else { return }
         remaining = 0
+        kokoroTask?.cancel()
+        kokoroTask = nil
+        playerNode.stop()
+        if audioEngine.isRunning { audioEngine.stop() }
         synth.stopSpeaking(at: .immediate)
         isSpeaking = false
     }
 
-    /// One utterance PER STORY with a newsreader beat between them — a single blob
-    /// utterance is where the flat, breathless delivery came from. Same voice,
-    /// far better rhythm.
     func toggle(_ parts: [String]) {
         if isSpeaking { stop(); return }
         guard !parts.isEmpty else { return }
@@ -58,6 +65,76 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
+        if KokoroEngine.shared.state == .ready || KokoroEngine.shared.state == .preparing {
+            speakKokoro(parts)
+        } else {
+            speakApple(parts)
+        }
+    }
+
+    // MARK: - Kokoro (studio voice): synth each story off-main, pipeline into the player
+
+    private func speakKokoro(_ parts: [String]) {
+        isSpeaking = true
+        Analytics.capture("briefing_play", ["engine": "kokoro"])
+        kokoroTask = Task { [self] in
+            do {
+                guard let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1) else { return }
+                if !engineWired {
+                    audioEngine.attach(playerNode)
+                    audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: format)
+                    engineWired = true
+                }
+                if !audioEngine.isRunning { try audioEngine.start() }
+                playerNode.play()
+                for (i, part) in parts.enumerated() {
+                    try Task.checkCancellation()
+                    var samples = try await KokoroEngine.shared.synthesize(part)
+                    try Task.checkCancellation()
+                    guard !samples.isEmpty else { continue }
+                    if i < parts.count - 1 { samples.append(contentsOf: [Float](repeating: 0, count: 8_400)) }  // 0.35s beat
+                    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else { continue }
+                    buffer.frameLength = AVAudioFrameCount(samples.count)
+                    samples.withUnsafeBufferPointer { src in
+                        buffer.floatChannelData![0].update(from: src.baseAddress!, count: samples.count)
+                    }
+                    playerNode.scheduleBuffer(buffer, completionHandler: nil)   // queues; playback already running
+                }
+                try Task.checkCancellation()
+                // Drain: resume when the queue finishes playing.
+                await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                    guard let tail = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 240) else { c.resume(); return }
+                    tail.frameLength = 240
+                    playerNode.scheduleBuffer(tail) { c.resume() }
+                }
+                finishKokoro()
+            } catch {
+                // Synth failure mid-run (or cancellation): fall back silently for cancel,
+                // Apple voice for genuine errors on a fresh play.
+                if !(error is CancellationError) {
+                    finishKokoro()
+                    speakApple(parts)
+                    return
+                }
+                finishKokoro()
+            }
+        }
+    }
+
+    private func finishKokoro() {
+        playerNode.stop()
+        if audioEngine.isRunning { audioEngine.stop() }
+        if kokoroTask != nil { isSpeaking = false; kokoroTask = nil }
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        #endif
+    }
+
+    // MARK: - Apple TTS fallback
+
+    /// One utterance PER STORY with a newsreader beat between them — a single blob
+    /// utterance is where the flat, breathless delivery came from.
+    private func speakApple(_ parts: [String]) {
         remaining = parts.count
         for (i, part) in parts.enumerated() {
             let utterance = AVSpeechUtterance(string: part)
@@ -68,7 +145,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
             synth.speak(utterance)   // AVSpeechSynthesizer queues natively
         }
         isSpeaking = true
-        Analytics.capture("briefing_play")
+        Analytics.capture("briefing_play", ["engine": "apple"])
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {

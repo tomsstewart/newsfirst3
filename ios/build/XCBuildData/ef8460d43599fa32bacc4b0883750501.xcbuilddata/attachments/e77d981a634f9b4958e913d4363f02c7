@@ -1,0 +1,4 @@
+module MLXUtilsLibrary {
+header "MLXUtilsLibrary-Swift.h"
+export *
+}

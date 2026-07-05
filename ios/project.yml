@@ -8,13 +8,25 @@ packages:
   Inject: # in-simulator hot reload (pair with the InjectionIII app)
     url: https://github.com/krzysztofzablocki/Inject.git
     from: 1.5.2
+  MisakiSwift: # Kokoro's G2P (text → phonemes), supports British English.
+    # VENDORED: upstream ships a resource folder literally named "Resources", which
+    # makes codesign treat the shallow iOS bundle as a malformed deep bundle
+    # ("bundle format unrecognized"). Local copy renames it to G2PData.
+    path: Vendor/MisakiSwift
+  onnxruntime: # CPU inference for the Kokoro-82M studio voice (works on simulator too)
+    url: https://github.com/microsoft/onnxruntime-swift-package-manager.git
+    from: 1.16.0
 targets:
   NewsFirst:
     type: application
     platform: iOS
+    scheme: {}   # resource-bundle codesign needs scheme+destination builds, not -target -sdk
     sources: [NewsFirst]
     dependencies:
       - package: Inject
+      - package: MisakiSwift
+      - package: onnxruntime
+        product: onnxruntime
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
