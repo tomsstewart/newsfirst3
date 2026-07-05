@@ -357,13 +357,14 @@ struct AccountSection: View {
     @Environment(\.openAuth) private var openAuth
     @Environment(\.dismiss) private var dismiss
     @State private var auth = AuthClient.shared
+    @State private var confirmingSignOut = false
 
     var body: some View {
         if auth.isSignedIn {
             VStack(alignment: .leading, spacing: 10) {
                 LabeledContent("Signed in as", value: auth.email ?? "—")
                     .font(Theme.Text.rowTitle)
-                Button(role: .destructive) { auth.signOut() } label: {
+                Button(role: .destructive) { confirmingSignOut = true } label: {
                     Text("Sign out")
                         .font(Theme.Text.cardTitle)
                         .frame(maxWidth: .infinity)
@@ -373,6 +374,17 @@ struct AccountSection: View {
                 }
                 .buttonStyle(PressableStyle())
                 .foregroundStyle(Theme.tierHigh)
+                .confirmationDialog("Sign out of NewsFirst?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+                    Button("Sign out", role: .destructive) {
+                        auth.signOut()
+                        // The app requires an account: closing settings, sign-in returns.
+                        dismiss()
+                        openAuth()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Alerts and the daily briefing stop until you sign back in.")
+                }
             }
         } else {
             VStack(alignment: .leading, spacing: 10) {

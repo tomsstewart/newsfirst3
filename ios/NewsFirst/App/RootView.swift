@@ -59,6 +59,11 @@ struct RootView: View {
             offerVoiceIfDue()
         }
         .onAppear { offerVoiceIfDue() }
+        // The app requires an account (OnboardingView.requiresAuth): a signed-out
+        // session that already onboarded gets the sign-in page back at launch.
+        .onAppear {
+            if OnboardingView.requiresAuth, hasOnboarded, !auth.isSignedIn { showAuth = true }
+        }
         // Headless UI check (sim): AUTH_SELFTEST=1 presents the sign-in sheet at launch.
         .onAppear {
             if ProcessInfo.processInfo.environment["AUTH_SELFTEST"] == "1" { showAuth = true }
