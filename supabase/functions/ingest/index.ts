@@ -29,7 +29,7 @@ interface Source {
 
 interface Item {
   url: string; url_hash: string; title: string; excerpt: string | null;
-  image_url: string | null; image_status?: string; published_at: string; source_id: string;
+  image_url: string | null; image_status: string; published_at: string; source_id: string;
   topics: string[]; entities: string[]; regions: string[];
   base_score: number; score_breakdown: Record<string, number>; lang: string | null;
 }
@@ -316,7 +316,9 @@ async function ingestTick(env: Env): Promise<void> {
         candidates.push({
           url, url_hash: await sha256(url), title: p.title.slice(0, 300),
           excerpt: p.description?.slice(0, 500) ?? null,
-          image_url: p.image ?? null, published_at: published, source_id: src.id,
+          // image_status on EVERY row: PostgREST bulk insert demands identical keys, and
+          // setting it only on OG-rescued rows 400'd whole batches (took Al Jazeera down).
+          image_url: p.image ?? null, image_status: "unchecked", published_at: published, source_id: src.id,
           topics: hintTopics(p.title, src.category), entities: [], regions: src.region ? [src.region] : [],
           base_score: score, score_breakdown: breakdown, lang: null,
         });
@@ -342,6 +344,8 @@ async function ingestTick(env: Env): Promise<void> {
       if (res.finalUrl) await db.patch(`sources?id=eq.${src.id}`, { feed_url: res.finalUrl }).catch(() => {});
     } catch (e) {
       failed++;
+      // Name the failure — silent per-source catches hid Al Jazeera being down for a day.
+      console.error(`ingest ${src.name}:`, e instanceof Error ? e.message : e);
       const streak = src.fail_streak + 1;
       await db.patch(`sources?id=eq.${src.id}`, {
         last_fetch_at: now, fail_streak: streak,
