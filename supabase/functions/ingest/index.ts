@@ -181,6 +181,38 @@ function geminiText(j: any): string {
   return parts.map((p: any) => p.text ?? "").join("");
 }
 
+/// Semantic embeddings for clustering via Supabase's BUILT-IN gte-small model
+/// (384-dim, runs locally in the edge runtime): zero quota, zero API keys — the
+/// Gemini per-item free-tier limit made remote embedding a non-starter (live 429
+/// after one batch). Embeddings lag ingest by at most one tick; merge_clusters
+/// retro-heals anything the trigram fallback mis-assigned in that gap.
+// deno-lint-ignore no-explicit-any
+declare const Supabase: any;
+const gte = new Supabase.ai.Session("gte-small");
+
+async function embedNewArticles(env: Env, limit = 12): Promise<number> {
+  // 12/invocation stays inside the free edge worker's CPU budget (100 hit
+  // WORKER_RESOURCE_LIMIT); its own 5-min cron gives ~3.4k/day capacity vs ~2.5k new articles.
+  const db = sb(env);
+  const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+  const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
+    `articles?embedding=is.null&published_at=gt.${since}&select=id,title,excerpt&order=published_at.desc&limit=${limit}`,
+  );
+  let stored = 0;
+  try {
+    for (const r of rows) {
+      const emb = await gte.run(`${r.title}\n${r.excerpt?.slice(0, 200) ?? ""}`, { mean_pool: true, normalize: true }) as number[];
+      if (!emb?.length) continue;
+      await db.patch(`articles?id=eq.${r.id}`, { embedding: `[${emb.join(",")}]` }).catch(() => {});
+      stored++;
+    }
+    return stored;
+  } catch (e) {
+    console.error("embed:", e instanceof Error ? e.message : e);
+    return stored > 0 ? stored : -1;   // partial progress still counts; next tick continues
+  }
+}
+
 async function ogImage(pageUrl: string): Promise<string | null> {
   try {
     const r = await fetch(pageUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }, redirect: "follow", signal: AbortSignal.timeout(5000) });
@@ -434,6 +466,10 @@ Deno.serve(async (req: Request) => {
   if (task === "watchdog") await healthWatchdog(env);
   else if (task === "enrich_backfill") detail = await enrichBackfill(env);
   else if (task === "briefs") detail = await generateBriefs(env);
+  else if (task === "embed") {
+    const n = Math.max(1, Math.min(100, Number(new URL(req.url).searchParams.get("n")) || 12));
+    detail = await embedNewArticles(env, n);
+  }
   else await ingestTick(env);
   return new Response(JSON.stringify({ ok: true, task, detail }), { headers: { "Content-Type": "application/json" } });
 });
