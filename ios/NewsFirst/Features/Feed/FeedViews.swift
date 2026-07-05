@@ -37,7 +37,7 @@ struct BriefCard: View {
             let parts = store.topicBriefingParts(topic)
             let text = parts.joined(separator: " ")
             if !text.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles")
                             .font(.caption.bold())
@@ -86,7 +86,6 @@ struct BriefCard: View {
                         .onTapGesture {
                             withAnimation(Theme.Motion.expand) { expandedBrief.toggle() }
                         }
-                    Spacer(minLength: 0)
                     HStack(spacing: 4) {
                         Text(expandedBrief ? "Show less" : "Read it all")
                         Image(systemName: expandedBrief ? "chevron.up" : "chevron.down")
@@ -100,7 +99,7 @@ struct BriefCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10).padding(.vertical, 8)
+                .padding(.horizontal, 10).padding(.vertical, 6)
                 .frame(height: expandedBrief ? nil : 104)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
@@ -578,14 +577,31 @@ struct TopicHeaderRow: View {
                 .font(.system(size: 28, weight: .heavy))
                 .lineLimit(1)
             if store.browse == .topics, topic != FeedStore.topStories {
-                Button { store.toggleNotify(topic) } label: {
-                    Image(systemName: store.notifyTopics.contains(topic) ? "bell.badge.fill" : "bell.badge")
-                        .font(.footnote)
-                        .foregroundStyle(store.notifyTopics.contains(topic) ? Theme.accent : .secondary)
-                        .padding(8)
-                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                if store.customTopics.contains(topic) {
+                    // Custom topics: tri-state bell — all (blue, default) → high-only → off.
+                    let level = store.customLevel(topic)
+                    Button { store.cycleCustomNotify(topic) } label: {
+                        Image(systemName: level == .all ? "bell.badge.fill"
+                                        : level == .high ? "bell.fill" : "bell.slash")
+                            .font(.footnote)
+                            .foregroundStyle(level == .all ? Theme.accent
+                                           : level == .high ? Theme.tierHigh : .secondary)
+                            .padding(8)
+                            .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                            .accessibilityLabel(level == .all ? "Alerts: every match"
+                                              : level == .high ? "Alerts: breaking only" : "Alerts off")
+                    }
+                    .buttonStyle(PressableStyle())
+                } else {
+                    Button { store.toggleNotify(topic) } label: {
+                        Image(systemName: store.notifyTopics.contains(topic) ? "bell.badge.fill" : "bell.badge")
+                            .font(.footnote)
+                            .foregroundStyle(store.notifyTopics.contains(topic) ? Theme.accent : .secondary)
+                            .padding(8)
+                            .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                    }
+                    .buttonStyle(PressableStyle())
                 }
-                .buttonStyle(PressableStyle())
             }
             Spacer(minLength: 8)
             if store.browse == .topics {
