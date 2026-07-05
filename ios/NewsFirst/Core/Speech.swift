@@ -72,7 +72,31 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    // MARK: - Kokoro (studio voice): synth each story off-main, pipeline into the player
+    // MARK: - Kokoro (studio voice): sentence-level pipeline into the player
+
+    /// Sentence-sized utterances are the anti-lag mechanism: a sentence synthesizes in
+    /// ~1s and plays for ~4s, so the queue permanently outruns playback — story-sized
+    /// chunks (multi-second synths) kept draining the buffer and stalling mid-briefing.
+    private static func sentenceChunks(_ parts: [String]) -> [(text: String, storyEnd: Bool)] {
+        var out: [(String, Bool)] = []
+        for part in parts {
+            var sentences: [String] = []
+            var current = ""
+            for ch in part {
+                current.append(ch)
+                if ".!?".contains(ch), current.count >= 24 {
+                    sentences.append(current.trimmingCharacters(in: .whitespaces))
+                    current = ""
+                }
+            }
+            let tail = current.trimmingCharacters(in: .whitespaces)
+            if !tail.isEmpty { sentences.append(tail) }
+            for (i, s) in sentences.enumerated() {
+                out.append((s, i == sentences.count - 1))   // the story beat lands after a part's last sentence
+            }
+        }
+        return out
+    }
 
     private func speakKokoro(_ parts: [String]) {
         isSpeaking = true
@@ -86,25 +110,23 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
                     engineWired = true
                 }
                 if !audioEngine.isRunning { try audioEngine.start() }
-                // Buffer AHEAD: playback starts only once the first TWO segments are
-                // queued. Starting on segment one left a dead-air gap after the greeting
-                // while the (long) first story was still synthesizing.
-                let startAfter = min(1, parts.count - 1)
-                for (i, part) in parts.enumerated() {
+                let chunks = Self.sentenceChunks(parts)
+                for (i, chunk) in chunks.enumerated() {
                     try Task.checkCancellation()
-                    var samples = try await KokoroEngine.shared.synthesize(part)
+                    var samples = try await KokoroEngine.shared.synthesize(chunk.text)
                     try Task.checkCancellation()
                     guard !samples.isEmpty else { continue }
-                    if i < parts.count - 1 { samples.append(contentsOf: [Float](repeating: 0, count: 8_400)) }  // 0.35s beat
+                    if chunk.storyEnd, i < chunks.count - 1 {
+                        samples.append(contentsOf: [Float](repeating: 0, count: 8_400))   // 0.35s beat between stories
+                    }
                     guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else { continue }
                     buffer.frameLength = AVAudioFrameCount(samples.count)
                     samples.withUnsafeBufferPointer { src in
                         buffer.floatChannelData![0].update(from: src.baseAddress!, count: samples.count)
                     }
                     playerNode.scheduleBuffer(buffer, completionHandler: nil)
-                    if i >= startAfter, !playerNode.isPlaying { playerNode.play() }
+                    if !playerNode.isPlaying { playerNode.play() }   // speak from the very first sentence
                 }
-                if !playerNode.isPlaying { playerNode.play() }   // single-segment briefings
                 try Task.checkCancellation()
                 // Drain: resume when the queue finishes playing.
                 await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in

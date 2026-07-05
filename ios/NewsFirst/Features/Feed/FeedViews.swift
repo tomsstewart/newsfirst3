@@ -230,6 +230,21 @@ struct OverlayCard: View {
                     Text(article.publishedAt, format: .relative(presentation: .named))
                         .font(Theme.Text.meta).foregroundStyle(.white.opacity(0.7))
                 }
+                // Expanded/immersive cards carry the story affordance as a real button —
+                // the small top chip alone was easy to miss.
+                if showRead, let n = article.clusterSources, n >= 2 {
+                    Button { store.story = article } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.stack.3d.up.fill").font(.caption2.bold())
+                            Text("See full coverage · \(n) sources").font(Theme.Text.rowTitle)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .glassChip()
+                    }
+                    .buttonStyle(PressableStyle())
+                }
             }
             .padding(16)
             .shadow(color: .black.opacity(0.55), radius: 3, y: 1)
