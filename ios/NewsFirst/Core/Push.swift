@@ -35,21 +35,30 @@ final class PushManager: NSObject {
 
     /// First bell toggle / sign-in with bells on. Safe to call repeatedly.
     func enablePush() {
+        Task { await requestPermission() }
+    }
+
+    /// The awaited core: onboarding's notifications page needs to know when the
+    /// system dialog resolved so it can advance. Returns whether push is enabled.
+    @discardableResult
+    func requestPermission() async -> Bool {
         #if os(iOS)
-        Task {
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-                Analytics.capture("push_permission", ["granted": granted])
-                if granted { UIApplication.shared.registerForRemoteNotifications() }
-            case .authorized, .provisional, .ephemeral:
-                UIApplication.shared.registerForRemoteNotifications()
-            default:
-                break   // denied: Settings.app is the only way back; don't nag
-            }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            Analytics.capture("push_permission", ["granted": granted])
+            if granted { UIApplication.shared.registerForRemoteNotifications() }
+            return granted
+        case .authorized, .provisional, .ephemeral:
+            UIApplication.shared.registerForRemoteNotifications()
+            return true
+        default:
+            return false   // denied: Settings.app is the only way back; don't nag
         }
+        #else
+        return false
         #endif
     }
 

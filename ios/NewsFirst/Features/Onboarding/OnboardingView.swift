@@ -25,6 +25,7 @@ struct OnboardingView: View {
             switch page {
             case 0: welcome
             case 1: topicPicker
+            case 2: notificationsAsk
             default: signInGate
             }
         }
@@ -32,10 +33,61 @@ struct OnboardingView: View {
         .background(Theme.canvas)
         .onAppear { Analytics.capture("onboarding_start") }
         .onChange(of: auth.isSignedIn) { _, signedIn in
-            if signedIn, page == 2 {
+            if signedIn, page == 3 {
                 Analytics.capture("onboarding_complete", ["signed_in": true])
                 withAnimation(Theme.Motion.feed) { done = true }
             }
+        }
+    }
+
+    /// Notifications ask, right after topic investment — the highest-intent moment.
+    /// The permission lands BEFORE sign-in: the device token parks in PushManager
+    /// and flushes to the server the instant the account exists.
+    private var notificationsAsk: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "bolt.badge.clock.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(Theme.accent)
+            Text("Be first to know")
+                .font(Theme.Text.hero)
+            Text("Breaking stories on your topics, every match on your keywords, and a spoken briefing each morning at 10.")
+                .font(Theme.Text.excerpt)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+            Spacer()
+            VStack(spacing: 12) {
+                Button {
+                    Task {
+                        await PushManager.shared.requestPermission()
+                        advanceFromNotifications()
+                    }
+                } label: {
+                    Text("Turn on notifications")
+                        .font(Theme.Text.cardTitle)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(Theme.selectionGradient, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(PressableStyle())
+                Button("Not now") { advanceFromNotifications() }
+                    .font(Theme.Text.rowTitle)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 40)
+            .onAppear { Analytics.capture("onboarding_notif_ask") }
+        }
+    }
+
+    private func advanceFromNotifications() {
+        if Self.requiresAuth, !auth.isSignedIn {
+            withAnimation(Theme.Motion.feed) { page = 3 }
+        } else {
+            withAnimation(Theme.Motion.feed) { done = true }
         }
     }
 
@@ -120,11 +172,7 @@ struct OnboardingView: View {
                                                       "count": picked.count + customsPicked.count,
                                                       "customs": customsPicked.count,
                                                       "is_initial_setup": true])
-                if Self.requiresAuth, !auth.isSignedIn {
-                    withAnimation(Theme.Motion.feed) { page = 2 }
-                } else {
-                    withAnimation(Theme.Motion.feed) { done = true }
-                }
+                withAnimation(Theme.Motion.feed) { page = 2 }   // → notifications ask
             } label: {
                 Text("Start reading")
                     .font(Theme.Text.cardTitle)
