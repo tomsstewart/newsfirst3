@@ -155,7 +155,8 @@ final class FeedStore {
     func loadMore() async {
         let key = capKey
         let newCap = (renderCaps[key] ?? Self.pageSize) + Self.pageSize
-        renderCaps[key] = newCap
+        // Animated: new rows must arrive, not pop — every mutation below is a transaction.
+        withAnimation(Theme.Motion.feed) { renderCaps[key] = newCap }
         // If the local pool can't fill the new cap, page more from the server.
         guard visibleUncapped.count < newCap, !exhaustedKeys.contains(key) else { return }
         let offset = serverOffsets[key] ?? 0
@@ -163,12 +164,16 @@ final class FeedStore {
             guard let extra = try? await api.fetchSource(selectedSource, limit: Self.pageSize, offset: offset) else { return }
             serverOffsets[key] = offset + extra.count
             if extra.count < Self.pageSize { exhaustedKeys.insert(key) }
-            sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            withAnimation(Theme.Motion.feed) {
+                sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            }
         } else if !isCustomSelected {
             guard let extra = try? await api.fetchTopic(selectedTopic, limit: Self.pageSize, offset: offset) else { return }
             serverOffsets[key] = offset + extra.count
             if extra.count < Self.pageSize { exhaustedKeys.insert(key) }
-            topicExtra[selectedTopic, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            withAnimation(Theme.Motion.feed) {
+                topicExtra[selectedTopic, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+            }
         } else {
             exhaustedKeys.insert(key)   // custom topics load in one 80-row search; no server paging yet
         }

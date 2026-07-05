@@ -321,18 +321,26 @@ struct TopicBar: View {
     /// White text revealed by the pill itself: the label's white layer is masked to the
     /// pill's rect, so glyphs whiten pixel-by-pixel as the pill's edge crosses them.
     @ViewBuilder private func pillMaskedWhite<L: View>(_ item: String, @ViewBuilder label: () -> L) -> some View {
-        if let pf = pillRect(), let cf = chipFrames[item], pf.intersects(cf) {
-            label()
-                .foregroundStyle(.white)
-                .mask(alignment: .topLeading) {
-                    // The overlay lives on the un-padded label (origin = chip origin +
-                    // content insets); uncorrected, the reveal led the pill edge by 14pt.
-                    Capsule()
-                        .frame(width: pf.width, height: pf.height)
-                        .offset(x: pf.minX - cf.minX - 14, y: -8)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // ALWAYS mounted: gating this view on pill/chip intersection made commits remove
+        // it structurally, and the default removal fade kept the old title white for the
+        // whole commit animation. Mounted permanently, the MASK's offset animates inside
+        // the commit transaction — the white sweeps off/onto glyphs with the pill's edge.
+        label()
+            .foregroundStyle(.white)
+            .mask(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
+                    if let pf = pillRect(), let cf = chipFrames[item] {
+                        // The overlay lives on the un-padded label (origin = chip origin +
+                        // content insets); uncorrected, the reveal led the pill edge by 14pt.
+                        Capsule()
+                            .frame(width: pf.width, height: pf.height)
+                            .offset(x: pf.minX - cf.minX - 14, y: -8)
+                            .id(pillEpoch)          // non-adjacent jump: fade with the pill, never sweep the bar
+                            .transition(.opacity)
+                    }
                 }
-        }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
     }
 
     #if os(macOS)
