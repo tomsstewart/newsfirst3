@@ -13,8 +13,17 @@ struct ReaderSheet: View {
 
     var body: some View {
         #if os(iOS)
-        SafariView(url: article.url, readerMode: store.readerMode)
-            .ignoresSafeArea()
+        // Floating Listen: SFSafariViewController is sealed (no injection, no DOM
+        // access), so the button lives in our layer and the text comes from fetching
+        // the page ourselves.
+        ZStack(alignment: .bottomTrailing) {
+            SafariView(url: article.url, readerMode: store.readerMode)
+                .ignoresSafeArea()
+            ReaderListenButton(article: article)
+                .padding(.trailing, 16)
+                .padding(.bottom, 60)   // above Safari's own toolbar
+        }
+        .onDisappear { Speech.shared.stop() }
         #else
         VStack(spacing: 0) {
             HStack {
@@ -30,6 +39,47 @@ struct ReaderSheet: View {
         }
         .frame(width: 393, height: 780)
         #endif
+    }
+}
+
+/// "Read this article to me": extracts the page's readable paragraphs and pipes them
+/// through the studio voice. Falls back to title + excerpt when a page won't yield text.
+struct ReaderListenButton: View {
+    let article: Article
+    @State private var speech = Speech.shared
+    @State private var preparing = false
+
+    var body: some View {
+        Button {
+            if speech.isSpeaking { speech.stop(); return }
+            guard !preparing else { return }
+            preparing = true
+            Task {
+                var parts = [article.title] + (await ArticleText.paragraphs(from: article.url))
+                if parts.count == 1, let excerpt = article.excerpt, !excerpt.isEmpty {
+                    parts.append(excerpt)   // paywalled/JS-only page: at least the summary
+                }
+                preparing = false
+                Speech.shared.toggle(parts)
+                Analytics.capture("article_listen", ["source": article.sourceName])
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if preparing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
+                        .font(.footnote.bold())
+                }
+                Text(preparing ? "Preparing…" : (speech.isSpeaking ? "Stop" : "Listen"))
+                    .font(Theme.Text.rowTitle)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .glassChip(prominent: speech.isSpeaking)
+            .foregroundStyle(speech.isSpeaking ? .white : Theme.accent)
+            .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+        }
+        .buttonStyle(PressableStyle())
     }
 }
 

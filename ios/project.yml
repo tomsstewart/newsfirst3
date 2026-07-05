@@ -43,8 +43,18 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         SWIFT_VERSION: "6.0"
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
-        OTHER_LDFLAGS: "-Xlinker -interposable"   # required for InjectionIII hot reload in Debug
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIBackgroundModes: audio   # briefing keeps playing when the app is backgrounded
+        # v3 ships as an UPDATE to the live listing (v2 is at 1.0.4)
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO   # standard HTTPS only — skips the TestFlight compliance stop
+        DEVELOPMENT_TEAM: 6W4ZBLPC9M
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          # InjectionIII hot reload — Debug only: the un-strippable indirect symbols
+          # it creates fail the Release archive's strip step.
+          OTHER_LDFLAGS: "-Xlinker -interposable"
 # Phase 3 additions: PostHog + supabase-swift packages, push + time-sensitive entitlements,
 # a NotificationService extension target (image pre-caching), RevenueCat in phase 5.

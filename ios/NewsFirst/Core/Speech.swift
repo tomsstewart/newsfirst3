@@ -195,3 +195,52 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 }
+
+/// Best-effort readable-text extraction for "read this article to me": fetch the page,
+/// scope to <article> when present, keep substantial <p> blocks. Paywalled/JS-only
+/// pages fall back to the title + excerpt the feed already carries.
+enum ArticleText {
+    static func paragraphs(from url: URL) async -> [String] {
+        var req = URLRequest(url: url)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        req.timeoutInterval = 12
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return [] }
+        let scope = firstMatch(in: html, pattern: "<article[\\s\\S]*?</article>") ?? html
+        let blocks = allMatches(in: scope, pattern: "<p[^>]*>([\\s\\S]*?)</p>")
+        return blocks
+            .map(plainText)
+            .filter { $0.count > 60 }                    // skip captions/bylines/cookie shrapnel
+            .prefix(40)                                   // ~5 minutes of listening, bounded
+            .map { $0 }
+    }
+
+    private static func firstMatch(in s: String, pattern: String) -> String? {
+        guard let r = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let m = r.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
+              let range = Range(m.range, in: s) else { return nil }
+        return String(s[range])
+    }
+
+    private static func allMatches(in s: String, pattern: String) -> [String] {
+        guard let r = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return [] }
+        return r.matches(in: s, range: NSRange(s.startIndex..., in: s)).compactMap { m in
+            guard m.numberOfRanges > 1, let range = Range(m.range(at: 1), in: s) else { return nil }
+            return String(s[range])
+        }
+    }
+
+    private static func plainText(_ html: String) -> String {
+        html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&apos;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
