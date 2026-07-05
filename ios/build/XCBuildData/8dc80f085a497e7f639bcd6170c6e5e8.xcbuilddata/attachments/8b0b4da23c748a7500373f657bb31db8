@@ -1,0 +1,49 @@
+{
+  "" : {
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Inject-primary.dia",
+    "emit-module-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Inject-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Inject-primary-emit-module.dia",
+    "pch" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Inject-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Inject-primary.swiftdeps"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/Sources/Inject/InjectConfiguration.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.dia",
+    "index-unit-output-path" : "/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/InjectConfiguration~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/Sources/Inject/Integrations/Hosts.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.dia",
+    "index-unit-output-path" : "/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/Hosts~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/Sources/Inject/Integrations/KitFrameworks.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.dia",
+    "index-unit-output-path" : "/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/KitFrameworks~partial.swiftmodule"
+  },
+  "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/Sources/Inject/Integrations/SwiftUI.swift" : {
+    "const-values" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.swiftconstvalues",
+    "dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.d",
+    "diagnostics" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.dia",
+    "index-unit-output-path" : "/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.o",
+    "llvm-bc" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.bc",
+    "object" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.o",
+    "swift-dependencies" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI.swiftdeps",
+    "swiftmodule" : "/Users/temp/Library/Developer/Xcode/DerivedData/NewsFirst-fabhziqgvhafaigbmwdvtfozmfxe/SourcePackages/checkouts/Inject/build/Inject.build/Debug-iphonesimulator/Inject.build/Objects-normal/arm64/SwiftUI~partial.swiftmodule"
+  }
+}

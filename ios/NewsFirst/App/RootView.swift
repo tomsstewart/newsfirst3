@@ -51,19 +51,10 @@ struct RootView: View {
     }
 
     private var header: some View {
-        ZStack {
-            // Absolutely centered view selector, regardless of side-control widths
-            Picker("View", selection: Binding(
-                get: { store.mode },
-                set: { m in withAnimation(Theme.Motion.feed) { store.mode = m } }
-            )) {
-                ForEach(ViewMode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 200)
-            HStack {
-                Button {
+        // Flexible row (not absolute centering): the full "Immersive" label needs more
+        // width than the gap left by absolute centering, which shoved it under TOPICS.
+        HStack(spacing: 10) {
+            Button {
                     withAnimation(Theme.Motion.card) {
                         store.browse = store.browse == .topics ? .sources : .topics
                     }
@@ -75,20 +66,30 @@ struct RootView: View {
                         Text(store.browse.rawValue.uppercased())
                             .font(Theme.Text.badge)
                     }
+                    .fixedSize()   // never collapses under header width pressure
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
                     .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
                     .foregroundStyle(.white)
                     .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
                 }
-                .buttonStyle(PressableStyle())
-                Spacer()
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(PressableStyle())
+            .buttonStyle(PressableStyle())
+            Spacer(minLength: 6)
+            Picker("View", selection: Binding(
+                get: { store.mode },
+                set: { m in withAnimation(Theme.Motion.feed) { store.mode = m } }
+            )) {
+                ForEach(ViewMode.allCases) { Text($0.rawValue).tag($0) }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .layoutPriority(1)   // the selector never truncates; spacers absorb the squeeze
+            Spacer(minLength: 6)
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(PressableStyle())
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)

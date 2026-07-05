@@ -1,0 +1,6 @@
+Target dependency graph (3 targets)
+Target 'NewsFirst' in project 'NewsFirst'
+➜ Explicit dependency on target 'Inject' in project 'Inject'
+Target 'Inject' in project 'Inject'
+➜ Explicit dependency on target 'Inject' in project 'Inject'
+Target 'Inject' in project 'Inject' (no dependencies)
