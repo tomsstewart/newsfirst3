@@ -45,5 +45,6 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         OTHER_LDFLAGS: "-Xlinker -interposable"   # required for InjectionIII hot reload in Debug
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIBackgroundModes: audio   # briefing keeps playing when the app is backgrounded
 # Phase 3 additions: PostHog + supabase-swift packages, push + time-sensitive entitlements,
 # a NotificationService extension target (image pre-caching), RevenueCat in phase 5.

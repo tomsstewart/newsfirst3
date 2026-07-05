@@ -266,6 +266,7 @@ struct NotificationSection: View {
     @Environment(\.dismiss) private var dismiss
     @State private var auth = AuthClient.shared
     @State private var status: UNAuthorizationStatus = .notDetermined
+    @State private var dailyBrief = UserDefaults.standard.object(forKey: "dailyBriefOptIn") as? Bool ?? true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -316,6 +317,18 @@ struct NotificationSection: View {
                     let customs = store.customTopics.count
                     Text("On. \(bells == 0 ? "Bell a topic to get its breaking stories" : "Breaking stories for \(bells) belled topic\(bells == 1 ? "" : "s")")\(customs > 0 ? " · every match on \(customs) custom topic\(customs == 1 ? "" : "s")" : "").")
                         .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                    Toggle(isOn: $dailyBrief) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Daily briefing").font(Theme.Text.rowTitle)
+                            Text("One morning notification — tap it and the news is read to you.")
+                                .font(Theme.Text.meta).foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .tint(Theme.accent)
+                    .onChange(of: dailyBrief) { _, on in
+                        Task { await PushManager.shared.setDailyBrief(on) }
+                    }
                 }
             }
         }

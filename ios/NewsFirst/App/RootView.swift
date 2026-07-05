@@ -49,12 +49,15 @@ struct RootView: View {
             PushManager.shared.openArticle = { articleID, _ in
                 Task { await store.openArticle(id: articleID) }
             }
+            PushManager.shared.playBrief = { store.playDailyBrief() }
             PushManager.shared.flushPendingOpen()   // cold start from a notification tap
             await PushManager.shared.registerIfAuthorized()
-            // Headless smoke test for the alert-tap path (sim): PUSH_SELFTEST_ARTICLE=<uuid>.
+            // Headless smoke test for the alert-tap path (sim): PUSH_SELFTEST_ARTICLE=<uuid>,
+            // or the literal "brief" to exercise the daily-brief autoplay route.
             if let id = ProcessInfo.processInfo.environment["PUSH_SELFTEST_ARTICLE"] {
                 try? await Task.sleep(for: .seconds(2))
-                PushManager.shared.handleTap(article: id, alert: nil, topic: "selftest")
+                if id == "brief" { PushManager.shared.handleTap(article: nil, alert: nil, topic: nil, brief: true) }
+                else { PushManager.shared.handleTap(article: id, alert: nil, topic: "selftest") }
             }
         }
         .task {
@@ -294,7 +297,14 @@ struct TopicBar: View {
         let custom = store.customTopics.contains(topic)
         let labelContent = HStack(spacing: 5) {
             if custom {
-                Image(systemName: "dot.radiowaves.left.and.right").font(.caption2)
+                // Alerts are the point of a custom topic: the chip wears the bell state.
+                let level = store.customLevel(topic)
+                Image(systemName: level == .all ? "bell.badge.fill"
+                                : level == .high ? "bell.fill" : "dot.radiowaves.left.and.right")
+                    .font(.caption2)
+                    .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
+                                   : level == .high ? AnyShapeStyle(Theme.tierHigh)
+                                   : AnyShapeStyle(.secondary))
             } else if topic == FeedStore.topStories {
                 Image(systemName: "flame.fill").font(.caption2)
             }

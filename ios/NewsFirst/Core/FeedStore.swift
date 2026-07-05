@@ -105,6 +105,7 @@ final class FeedStore {
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
+        customNotifyLevels = defaults.dictionary(forKey: "customNotifyLevels") as? [String: String] ?? [:]
         showBriefings = defaults.object(forKey: "showBriefings") as? Bool ?? true
         topicOrder = defaults.stringArray(forKey: "topicOrder") ?? []
         mode = defaultMode
@@ -406,6 +407,39 @@ final class FeedStore {
         Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
     }
 
+    /// Custom topics alert on EVERY match by default (radar semantics). The bell
+    /// cycles all → high-only → off; absent key = all, so new topics start loud.
+    var customNotifyLevels: [String: String] {
+        didSet { defaults.set(customNotifyLevels, forKey: "customNotifyLevels") }
+    }
+    func customLevel(_ topic: String) -> NotifyLevel {
+        NotifyLevel(rawValue: customNotifyLevels[topic] ?? "") ?? .all
+    }
+    func cycleCustomNotify(_ topic: String) {
+        let next: NotifyLevel = switch customLevel(topic) {
+        case .all: .high
+        case .high: .none
+        case .none: .all
+        }
+        customNotifyLevels[topic] = next.rawValue
+        Analytics.capture("topic_notify_toggle", ["topic": topic, "level": next.rawValue])
+        if next != .none { PushManager.shared.enablePush() }
+        Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
+    }
+
+    /// Daily-brief notification tap: wait for the feed (briefing is composed from it),
+    /// then speak. Audio session is .playback — keeps reading when the app backgrounds.
+    func playDailyBrief() {
+        Task {
+            for _ in 0..<40 where !hasLoadedOnce {
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+            guard !Speech.shared.isSpeaking else { return }
+            Speech.shared.toggle(personalBriefingParts)
+            Analytics.capture("brief_autoplay")
+        }
+    }
+
     /// Notification tap → reader. Pools first (instant), server fallback for an
     /// article that scrolled out of the cached window.
     func openArticle(id: String) async {
@@ -604,6 +638,7 @@ final class FeedStore {
         withAnimation(Theme.Motion.snappy) {
             customTopics.removeAll { $0 == topic }
             customResults[topic] = nil
+            customNotifyLevels[topic] = nil
             if selectedTopic == topic { selectedTopic = enabledTopics.first ?? "world" }
         }
     }

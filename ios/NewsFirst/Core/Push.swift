@@ -17,8 +17,11 @@ final class PushManager: NSObject {
 
     /// Set by RootView: routes a notification tap to the reader (article_id, alert_id).
     var openArticle: ((String, String?) -> Void)?
+    /// Set by RootView: a daily-brief notification tap starts the spoken briefing.
+    var playBrief: (() -> Void)?
     /// A tap that arrived before RootView mounted (cold start from a notification).
     private var pendingOpen: (article: String, alert: String?)?
+    private var pendingBrief = false
     private var parkedToken: String?
     private let defaults = UserDefaults.standard
 
@@ -96,6 +99,22 @@ final class PushManager: NSObject {
         defaults.set(token, forKey: "apnsToken")
     }
 
+    /// Daily-brief opt-in/out — server-side so brief_push can filter before sending.
+    func setDailyBrief(_ on: Bool) async {
+        UserDefaults.standard.set(on, forKey: "dailyBriefOptIn")
+        guard let jwt = await AuthClient.shared.validToken(), let uid = AuthClient.shared.userID else { return }
+        var req = URLRequest(url: URL(string: SupabaseAPI.projectURL.absoluteString
+            + "/rest/v1/notification_settings?on_conflict=user_id")!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
+        req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [["user_id": uid, "daily_brief": on]])
+        _ = try? await URLSession.shared.data(for: req)
+        Analytics.capture("daily_brief_toggle", ["on": on])
+    }
+
     /// Sign-out: retire this device's row (best effort) so a shared phone can't keep
     /// receiving the previous account's alerts.
     func retireDevice() async {
@@ -112,17 +131,23 @@ final class PushManager: NSObject {
 
     // MARK: open-from-alert
 
-    func handleTap(article articleID: String?, alert alertID: String?, topic: String?) {
+    func handleTap(article articleID: String?, alert alertID: String?, topic: String?, brief: Bool = false) {
+        if let alertID { Task { await markOpened(alertID) } }
+        if brief {
+            Analytics.capture("notif_open", ["topic": "brief"])
+            if let playBrief { playBrief() } else { pendingBrief = true }
+            return
+        }
         guard let articleID else { return }
         Analytics.capture("notif_open", ["topic": topic ?? "?"])
-        if let alertID { Task { await markOpened(alertID) } }
         if let openArticle { openArticle(articleID, alertID) }
         else { pendingOpen = (articleID, alertID) }
     }
 
-    /// RootView calls this once its handler is installed (cold-start tap ordering).
+    /// RootView calls this once its handlers are installed (cold-start tap ordering).
     func flushPendingOpen() {
         if let p = pendingOpen, let openArticle { pendingOpen = nil; openArticle(p.article, p.alert) }
+        if pendingBrief, let playBrief { pendingBrief = false; playBrief() }
     }
 
     /// alerts.opened_at closes the funnel: sent → delivered → opened, finally measurable.
@@ -171,7 +196,8 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         let article = userInfo["article_id"] as? String
         let alert = userInfo["alert_id"] as? String
         let topic = userInfo["topic"] as? String
-        await MainActor.run { PushManager.shared.handleTap(article: article, alert: alert, topic: topic) }
+        let brief = userInfo["brief"] as? String == "1"
+        await MainActor.run { PushManager.shared.handleTap(article: article, alert: alert, topic: topic, brief: brief) }
     }
 }
 #endif

@@ -526,6 +526,74 @@ async function alertsTick(env: Env): Promise<unknown> {
   return { claimed: claimed.length, sent, invalidated, failures: failures.slice(0, 5) };
 }
 
+/// Daily briefing push (on by default): one digest notification per user per day,
+/// title previews their top stories, payload carries brief:"1" so the client
+/// auto-plays the spoken briefing. Opt-out = notification_settings.daily_brief=false.
+async function briefPush(env: Env): Promise<unknown> {
+  if (!env.APNS_KEY_P8) return "apns-not-configured";
+  const db = sb(env);
+  const today = new Date().toISOString().slice(0, 10);
+  const briefs = await db.get<{ topic: string }[]>(`briefs?brief_date=eq.${today}&select=topic&limit=1`);
+  if (!briefs.length) return "no-briefs-yet";   // 09:45 sweep retries after the briefs retry cron
+
+  const devices = await db.get<{ user_id: string; apns_token: string; environment: string }[]>(
+    "devices?is_valid=eq.true&select=user_id,apns_token,environment");
+  if (!devices.length) return { users: 0 };
+  const byUser = new Map<string, { token: string; environment: string }[]>();
+  for (const d of devices) (byUser.get(d.user_id) ?? byUser.set(d.user_id, []).get(d.user_id)!)
+    .push({ token: d.apns_token, environment: d.environment });
+
+  const optedOut = new Set((await db.get<{ user_id: string }[]>(
+    "notification_settings?daily_brief=eq.false&select=user_id")).map((r) => r.user_id));
+  const sentToday = new Set((await db.get<{ user_id: string }[]>(
+    `alerts?kind=eq.digest&sent_at=gte.${today}T00:00:00Z&select=user_id`)).map((r) => r.user_id));
+
+  // Preview pool: today's front page. Personalized per user by their subscribed topics.
+  const pool = await db.get<{ title: string; topics: string[] }[]>(
+    "feed?select=title,topics&order=score.desc,published_at.desc&limit=40");
+  const subs = await db.get<{ user_id: string; topic: string; kind: string }[]>(
+    "topic_subscriptions?select=user_id,topic,kind");
+  const userTopics = new Map<string, Set<string>>();
+  for (const s of subs.filter((s) => s.kind === "preset")) {
+    (userTopics.get(s.user_id) ?? userTopics.set(s.user_id, new Set()).get(s.user_id)!).add(s.topic);
+  }
+
+  let sent = 0, skipped = 0;
+  for (const [uid, tokens] of byUser) {
+    if (optedOut.has(uid) || sentToday.has(uid)) { skipped++; continue; }
+    const mine = userTopics.get(uid);
+    const picks = pool.filter((a) => !mine?.size || a.topics?.some((t) => mine.has(t))).slice(0, 3);
+    const fallback = picks.length ? picks : pool.slice(0, 3);
+    if (!fallback.length) continue;
+    const trim = (s: string, n: number) => s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+    const payloadAlert = {
+      title: `Your briefing · ${trim(fallback[0].title, 60)}`,
+      body: fallback.slice(1).map((a) => trim(a.title, 70)).join(" — ") || "Tap to listen to today's news.",
+    };
+    const claimed = await db.postRows("alerts",
+      [{ user_id: uid, topic: "brief", kind: "digest" }], "return=representation") as { id: string }[];
+    const alertId = claimed[0]?.id;
+    if (!alertId) continue;
+    const payload = {
+      aps: { alert: payloadAlert, sound: "default", "thread-id": "daily-brief" },
+      brief: "1", alert_id: alertId,
+    };
+    let accepted: string | null = null;
+    for (const d of tokens) {
+      const r = await sendPush(env, d, payload, `brief-${today}`);
+      if (r.ok) { accepted = r.apnsId ?? "accepted"; sent++; }
+      else if (r.status === 410 || r.reason === "BadDeviceToken" || r.reason === "Unregistered") {
+        await db.patch(`devices?apns_token=eq.${encodeURIComponent(d.token)}`, { is_valid: false }).catch(() => {});
+      } else console.error(`brief_push: apns ${r.status} ${r.reason}`);
+    }
+    if (accepted) {
+      await db.patch(`alerts?id=eq.${alertId}`,
+        { apns_id: accepted, delivered_at: new Date().toISOString() }).catch(() => {});
+    }
+  }
+  return { users: byUser.size, sent, skipped };
+}
+
 Deno.serve(async (req: Request) => {
   const env: Env = {
     SUPABASE_URL: Deno.env.get("SUPABASE_URL")!,
@@ -556,6 +624,7 @@ Deno.serve(async (req: Request) => {
     detail = await embedNewArticles(env, n);
   }
   else if (task === "alerts") detail = await alertsTick(env);
+  else if (task === "brief_push") detail = await briefPush(env);
   else await ingestTick(env);
   return new Response(JSON.stringify({ ok: true, task, detail }), { headers: { "Content-Type": "application/json" } });
 });

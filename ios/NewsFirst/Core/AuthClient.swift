@@ -179,9 +179,11 @@ final class AuthClient {
     func syncTopics(preset: [String], custom: [String]) async {
         guard let token = await validToken(), let uid = userID else { return }
         let bells = Set(UserDefaults.standard.stringArray(forKey: "notifyTopics") ?? [])
+        let customLevels = UserDefaults.standard.dictionary(forKey: "customNotifyLevels") as? [String: String] ?? [:]
         let rows = preset.map { ["user_id": uid, "topic": $0, "kind": "preset",
                                  "notify_level": bells.contains($0) ? "high" : "none"] }
-                 + custom.map { ["user_id": uid, "topic": $0, "kind": "custom", "notify_level": "all"] }
+                 + custom.map { ["user_id": uid, "topic": $0, "kind": "custom",
+                                 "notify_level": customLevels[$0] ?? "all"] }
         var req = URLRequest(url: SupabaseAPI.projectURL.appending(path: "rest/v1/topic_subscriptions"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
