@@ -461,9 +461,10 @@ struct FullPage: View {
                         .glassChip()
                 }
                 .buttonStyle(PressableStyle())
+                .padding(.top, 10)   // separated from the excerpt, sitting near the page's bottom edge
             }
             .padding(22)
-            .padding(.bottom, 34)
+            .padding(.bottom, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
         }
