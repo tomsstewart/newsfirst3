@@ -273,7 +273,11 @@ final class FeedStore {
     /// user's CUSTOM topics with real depth (two stories each, summary sentence on the
     /// lead), then attributed top stories from their chosen topics. Spoken in full;
     /// the card truncates visually.
-    var personalBriefing: String {
+    var personalBriefing: String { personalBriefingParts.joined(separator: " ") }
+
+    /// Segments, not one blob: the speech engine gives each story its own utterance
+    /// with a newsreader beat between them — same text, dramatically better delivery.
+    var personalBriefingParts: [String] {
         var parts: [String] = []
         let hour = Calendar.current.component(.hour, from: .now)
         let greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
@@ -310,8 +314,8 @@ final class FeedStore {
         if parts.isEmpty, let brief = briefs[sessionBriefTopic ?? selectedTopic] {
             parts.append(brief)
         }
-        guard !parts.isEmpty else { return "" }
-        return "\(greeting). Here's your briefing. " + parts.joined(separator: " ") + " That's your briefing."
+        guard !parts.isEmpty else { return [] }
+        return ["\(greeting). Here's your briefing."] + parts + ["That's your briefing."]
     }
 
     private static func sentence(_ s: String) -> String {

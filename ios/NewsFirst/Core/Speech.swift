@@ -37,30 +37,46 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
             .max { rank($0) < rank($1) }
     }()
 
-    func toggle(_ text: String) {
-        if isSpeaking {
-            synth.stopSpeaking(at: .immediate)
-            isSpeaking = false
-            return
-        }
+    private var remaining = 0
+
+    func stop() {
+        guard isSpeaking else { return }
+        remaining = 0
+        synth.stopSpeaking(at: .immediate)
+        isSpeaking = false
+    }
+
+    /// One utterance PER STORY with a newsreader beat between them — a single blob
+    /// utterance is where the flat, breathless delivery came from. Same voice,
+    /// far better rhythm.
+    func toggle(_ parts: [String]) {
+        if isSpeaking { stop(); return }
+        guard !parts.isEmpty else { return }
         #if os(iOS)
         // .playback so the briefing is audible even with the mute switch on — it's
         // an explicit "read it to me", not incidental sound.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = Self.voice
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95   // a touch calmer than default
-        utterance.postUtteranceDelay = 0.1
-        synth.speak(utterance)
+        remaining = parts.count
+        for (i, part) in parts.enumerated() {
+            let utterance = AVSpeechUtterance(string: part)
+            utterance.voice = Self.voice
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.92   // newsreader, not auctioneer
+            utterance.pitchMultiplier = 1.02
+            utterance.postUtteranceDelay = i == parts.count - 1 ? 0 : 0.35   // the beat between stories
+            synth.speak(utterance)   // AVSpeechSynthesizer queues natively
+        }
         isSpeaking = true
         Analytics.capture("briefing_play")
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            Speech.shared.isSpeaking = false
+            let s = Speech.shared
+            s.remaining = max(0, s.remaining - 1)
+            guard s.remaining == 0 else { return }
+            s.isSpeaking = false
             #if os(iOS)
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             #endif
@@ -68,6 +84,10 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in Speech.shared.isSpeaking = false }
+        Task { @MainActor in
+            let s = Speech.shared
+            s.remaining = 0
+            s.isSpeaking = false
+        }
     }
 }

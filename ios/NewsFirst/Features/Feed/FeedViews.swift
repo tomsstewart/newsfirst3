@@ -26,6 +26,7 @@ struct ArticleImage: View {
 struct BriefCard: View {
     @Environment(FeedStore.self) private var store
     @State private var speech = Speech.shared
+    @State private var expandedBrief = false
 
     var body: some View {
         if store.browse == .topics, store.selectedTopic == store.sessionBriefTopic, !store.briefDismissed {
@@ -42,7 +43,7 @@ struct BriefCard: View {
                             .kerning(0.8)
                         Spacer()
                         Button {
-                            speech.toggle(text)
+                            speech.toggle(store.personalBriefingParts)
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
@@ -56,7 +57,7 @@ struct BriefCard: View {
                         }
                         .buttonStyle(PressableStyle())
                         Button {
-                            if speech.isSpeaking { speech.toggle("") }   // dismissing also stops playback
+                            speech.stop()   // dismissing also stops playback
                             withAnimation(Theme.Motion.card) { store.briefDismissed = true }
                             Analytics.capture("briefing_dismiss")
                         } label: {
@@ -68,13 +69,27 @@ struct BriefCard: View {
                         }
                         .buttonStyle(PressableStyle())
                     }
-                    // Full text is SPOKEN; on screen it clamps — the card must never
-                    // dominate the feed. lineLimit renders the trailing ellipsis.
+                    // Clamped by default so the card never dominates the feed;
+                    // tap the text to read the whole briefing in place.
                     Text(text)
                         .font(Theme.Text.excerpt)
                         .foregroundStyle(.primary.opacity(0.92))
-                        .lineLimit(4)
+                        .lineLimit(expandedBrief ? nil : 4)
                         .truncationMode(.tail)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(Theme.Motion.expand) { expandedBrief.toggle() }
+                        }
+                    HStack(spacing: 4) {
+                        Text(expandedBrief ? "Show less" : "Read it all")
+                        Image(systemName: expandedBrief ? "chevron.up" : "chevron.down")
+                    }
+                    .font(Theme.Text.badge)
+                    .foregroundStyle(Theme.accent.opacity(0.8))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(Theme.Motion.expand) { expandedBrief.toggle() }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
