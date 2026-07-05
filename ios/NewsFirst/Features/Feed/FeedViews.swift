@@ -187,7 +187,10 @@ struct ArticleExpandableCell: View {
     let toggle: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // ZStack, not VStack: during the crossfade BOTH views exist; stacked they sum to
+        // row+card height, so the cell overshot and snapped back on every expand/collapse.
+        // Overlapped, the container animates cleanly between the two heights.
+        ZStack(alignment: .top) {
             if expanded {
                 // Same footprint as a standard Immersive pane — expanding must not dwarf the feed.
                 OverlayCard(article: article, height: 330, showTier: false)
@@ -324,7 +327,9 @@ struct FullPage: View {
             // Image is hard-bounded to the page: aspect-fill must never widen the stack
             // (that pushed the text block outside the clip — "text completely failing").
             GeometryReader { g in
-                ArticleImage(article: article, width: 900)
+                // 800 matches OverlayCard and the prefetcher — 900 meant Full mode never
+                // hit the warmed cache and re-downloaded every image at a near-twin size.
+                ArticleImage(article: article, width: 800)
                     .frame(width: g.size.width, height: g.size.height)
                     .clipped()
             }
@@ -433,6 +438,9 @@ struct LoadMoreButton: View {
     @Environment(FeedStore.self) private var store
     @State private var loading = false
     var body: some View {
+        if store.canLoadMore { button }
+    }
+    private var button: some View {
         Button {
             guard !loading else { return }
             loading = true

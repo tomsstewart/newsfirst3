@@ -173,8 +173,11 @@ struct SettingsView: View {
             }
         }
         .background(Theme.canvas)
-        .preferredColorScheme(.dark)
-        .task { sources = (try? await SupabaseAPI().fetchSources()) ?? [] }
+        .preferredColorScheme(store.appearance.scheme)   // honour the user's own Appearance setting
+        .task {
+            await store.loadSources()   // cached in the store — no re-fetch per settings open
+            sources = store.sources
+        }
         #if os(macOS)
         .frame(width: 393, height: 780)
         #endif

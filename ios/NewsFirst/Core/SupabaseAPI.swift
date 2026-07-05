@@ -54,7 +54,7 @@ struct SupabaseAPI {
     func fetchBriefs() async throws -> [String: String] {
         var comps = URLComponents(url: Self.projectURL.appending(path: "rest/v1/briefs"), resolvingAgainstBaseURL: false)!
         comps.queryItems = [
-            .init(name: "select", value: "topic,content,brief_date"),
+            .init(name: "select", value: "topic,content"),   // brief_date orders fine unselected
             .init(name: "order", value: "brief_date.desc"),
             .init(name: "limit", value: "40"),
         ]

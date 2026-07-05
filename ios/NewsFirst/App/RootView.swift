@@ -44,8 +44,12 @@ struct RootView: View {
             await store.backfillIfSparse()
         }
         .task {
-            // Splash holds only as long as the cache load needs — never a fixed timer.
-            try? await Task.sleep(for: .milliseconds(950))   // let the fly-in settle
+            // Fly-in needs ~550ms to land; beyond that, hold only while the cache load
+            // still owes us a feed (bounded) — a fixed 950ms floor broke the <1s budget.
+            try? await Task.sleep(for: .milliseconds(550))
+            for _ in 0..<8 where !store.hasLoadedOnce {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
             withAnimation(.easeOut(duration: 0.4)) { showSplash = false }
         }
     }
@@ -96,7 +100,8 @@ struct RootView: View {
         .padding(.bottom, 10)
     }
 
-    @State private var swipeDirection: Edge = .trailing
+    private enum DragAxis { case horizontal, vertical }
+    @State private var dragAxis: DragAxis?
     @State private var feedDrag: CGFloat = 0
 
     @ViewBuilder private var feed: some View {
@@ -120,11 +125,19 @@ struct RootView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { v in
-                        guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                        feedDrag = v.translation.width
+                        // Latch the axis on first movement: re-evaluating per frame let a
+                        // diagonal scroll flip horizontal mid-gesture — the feed lurched
+                        // sideways by the full accumulated translation in one frame.
+                        if dragAxis == nil {
+                            dragAxis = abs(v.translation.width) > abs(v.translation.height) ? .horizontal : .vertical
+                        }
+                        guard dragAxis == .horizontal else { return }
+                        feedDrag = max(-w, min(w, v.translation.width))   // only 3 panes exist — never expose blank canvas
                         store.swipeProgress = max(-1, min(1, -v.translation.width / w))
                     }
                     .onEnded { v in
+                        defer { dragAxis = nil }
+                        guard dragAxis == .horizontal else { return }   // a vertical flick must never commit a topic change
                         let commit = abs(v.translation.width) > w * 0.28 || abs(v.predictedEndTranslation.width) > w * 0.55
                         if commit {
                             let delta = v.translation.width < 0 ? 1 : -1
@@ -166,22 +179,6 @@ struct RootView: View {
         .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.barItem(offset: offset))")
     }
 
-    /// Swipe left/right anywhere on the feed pages through the topic bar.
-    private func stepTopic(_ delta: Int) {
-        KineticGate.suppressed = true    // swipe = straight column scroll, no entrance cascade
-        swipeDirection = delta > 0 ? .trailing : .leading
-        if store.browse == .sources {
-            let bar = store.sourceBar
-            guard let idx = bar.firstIndex(of: store.selectedSource), !bar.isEmpty else { return }
-            withAnimation(Theme.Motion.feed) { store.selectedSource = bar[(idx + delta + bar.count) % bar.count] }
-            return
-        }
-        let bar = store.topicBar
-        guard let idx = bar.firstIndex(of: store.selectedTopic) else { return }
-        let next = (idx + delta + bar.count) % bar.count
-        withAnimation(Theme.Motion.feed) { store.selectedTopic = bar[next] }
-        if store.customTopics.contains(bar[next]) { Task { await store.loadCustom(bar[next]) } }
-    }
 }
 
 extension EnvironmentValues {
@@ -328,9 +325,11 @@ struct TopicBar: View {
             label()
                 .foregroundStyle(.white)
                 .mask(alignment: .topLeading) {
+                    // The overlay lives on the un-padded label (origin = chip origin +
+                    // content insets); uncorrected, the reveal led the pill edge by 14pt.
                     Capsule()
                         .frame(width: pf.width, height: pf.height)
-                        .offset(x: pf.minX - cf.minX, y: 0)
+                        .offset(x: pf.minX - cf.minX - 14, y: -8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
         }
@@ -388,6 +387,7 @@ struct TopicBar: View {
                 .font(Theme.Text.meta)
                 .textFieldStyle(.plain)
                 .focused($draftFocused)
+                .onAppear { draftFocused = true }   // focus once mounted; focusing pre-insert was dropped sometimes
                 .frame(width: 110)
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .glassChip()
@@ -400,7 +400,6 @@ struct TopicBar: View {
         } else {
             Button {
                 withAnimation(Theme.Motion.snappy) { addingTopic = true }
-                draftFocused = true
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "plus").font(.caption2.bold())

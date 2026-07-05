@@ -29,10 +29,14 @@ enum Appearance: String, CaseIterable, Identifiable {
 final class FeedStore {
     static let presetTopics = ["world", "business", "economics", "tech", "ai", "science", "sports", "crypto", "gaming", "entertainment", "space", "climate", "health", "travel"]
 
-    private(set) var articles: [Article] = []                 // whole ranked feed
-    private(set) var customResults: [String: [Article]] = [:] // custom topic -> results
-    private(set) var topicExtra: [String: [Article]] = [:]     // sparse preset topic -> targeted fetch
-    private(set) var sourceResults: [String: [Article]] = [:]  // source name -> targeted fetch
+    private(set) var articles: [Article] = [] { didSet { rankedCache.removeAll() } }   // whole ranked feed
+    private(set) var customResults: [String: [Article]] = [:] { didSet { rankedCache.removeAll() } }  // custom topic -> results
+    private(set) var topicExtra: [String: [Article]] = [:] { didSet { rankedCache.removeAll() } }     // sparse preset topic -> targeted fetch
+    private(set) var sourceResults: [String: [Article]] = [:] { didSet { rankedCache.removeAll() } }  // source name -> targeted fetch
+
+    /// Rank/dedupe/diversify over 350 articles is too heavy to re-run per drag frame at
+    /// 120Hz (3 panes × O(n²) work) — memoized until any underlying pool changes.
+    @ObservationIgnored private var rankedCache: [String: [Article]] = [:]
     private(set) var briefs: [String: String] = [:]             // topic -> latest AI overview
     private(set) var loadingCustom: Set<String> = []
     private(set) var isRefreshing = false
@@ -49,9 +53,9 @@ final class FeedStore {
     }
 
     // Persisted preferences (UserDefaults now; syncs to topic_subscriptions post-auth)
-    var customTopics: [String] { didSet { defaults.set(customTopics, forKey: "customTopics") } }
-    var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics") } }
-    var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources") } }
+    var customTopics: [String] { didSet { defaults.set(customTopics, forKey: "customTopics"); validateSelection() } }
+    var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics"); validateSelection() } }
+    var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources"); rankedCache.removeAll() } }
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
@@ -70,6 +74,15 @@ final class FeedStore {
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         mode = defaultMode
+        validateSelection()
+    }
+
+    /// The selected topic must always exist in the bar — otherwise no chip highlights,
+    /// the pill vanishes and swipes dead-end (e.g. after disabling the selected topic).
+    private func validateSelection() {
+        if browse == .topics, !topicBar.contains(selectedTopic) {
+            selectedTopic = topicBar.first ?? "world"
+        }
     }
 
     var topicBar: [String] { enabledTopics + customTopics }
@@ -77,15 +90,25 @@ final class FeedStore {
 
     /// Called when a preset topic or source shows empty — targeted server fetch fills it.
     func backfillIfSparse() async {
+        // Failures/cancellations must stay nil: caching `[]` here made one flaky request
+        // (or a fast swipe-past, which cancels the .task) an empty topic for the session.
         if browse == .sources {
             let s = selectedSource
             guard !s.isEmpty, articles.filter({ $0.sourceName == s }).isEmpty, sourceResults[s] == nil else { return }
-            sourceResults[s] = (try? await api.fetchSource(s)) ?? []
+            if let fetched = try? await api.fetchSource(s) {
+                withAnimation(Theme.Motion.feed) { sourceResults[s] = fetched }
+                serverOffsets["s:\(s)"] = fetched.count   // Load More pages from here, not row 0
+                if fetched.count < 60 { exhaustedKeys.insert("s:\(s)") }
+            }
         } else if !isCustomSelected {
             let t = selectedTopic
             // Backfill thin topics too, not just empty ones — every section deserves a full page.
             guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return }
-            topicExtra[t] = (try? await api.fetchTopic(t)) ?? []
+            if let fetched = try? await api.fetchTopic(t) {
+                withAnimation(Theme.Motion.feed) { topicExtra[t] = fetched }
+                serverOffsets["t:\(t)"] = fetched.count   // Load More pages from here, not row 0
+                if fetched.count < 60 { exhaustedKeys.insert("t:\(t)") }
+            }
         }
     }
 
@@ -117,21 +140,37 @@ final class FeedStore {
 
     private var capKey: String { browse == .topics ? "t:\(selectedTopic)" : "s:\(selectedSource)" }
     var renderCap: Int { renderCaps[capKey] ?? Self.pageSize }
-    var canLoadMore: Bool { visibleUncapped.count > renderCap || visibleUncapped.count >= renderCap }
+
+    /// Raw rows already pulled from the server per key — client-side dedupe/diversity
+    /// counts don't correspond to server offsets, so page from this instead.
+    @ObservationIgnored private var serverOffsets: [String: Int] = [:]
+    private(set) var exhaustedKeys: Set<String> = []
+
+    /// Hide "Load more" once the pool is on screen and the server has nothing further —
+    /// otherwise every tap is a Supabase query that returns only discards.
+    var canLoadMore: Bool {
+        visibleUncapped.count > renderCap || !exhaustedKeys.contains(capKey)
+    }
 
     func loadMore() async {
         let key = capKey
         let newCap = (renderCaps[key] ?? Self.pageSize) + Self.pageSize
         renderCaps[key] = newCap
         // If the local pool can't fill the new cap, page more from the server.
-        if visibleUncapped.count < newCap {
-            if browse == .sources {
-                let extra = (try? await api.fetchSource(selectedSource, limit: Self.pageSize, offset: visibleUncapped.count)) ?? []
-                sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
-            } else if !isCustomSelected {
-                let extra = (try? await api.fetchTopic(selectedTopic, limit: Self.pageSize, offset: visibleUncapped.count)) ?? []
-                topicExtra[selectedTopic, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
-            }
+        guard visibleUncapped.count < newCap, !exhaustedKeys.contains(key) else { return }
+        let offset = serverOffsets[key] ?? 0
+        if browse == .sources {
+            guard let extra = try? await api.fetchSource(selectedSource, limit: Self.pageSize, offset: offset) else { return }
+            serverOffsets[key] = offset + extra.count
+            if extra.count < Self.pageSize { exhaustedKeys.insert(key) }
+            sourceResults[selectedSource, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+        } else if !isCustomSelected {
+            guard let extra = try? await api.fetchTopic(selectedTopic, limit: Self.pageSize, offset: offset) else { return }
+            serverOffsets[key] = offset + extra.count
+            if extra.count < Self.pageSize { exhaustedKeys.insert(key) }
+            topicExtra[selectedTopic, default: []].append(contentsOf: extra.filter { a in !visibleUncapped.contains(where: { $0.id == a.id }) })
+        } else {
+            exhaustedKeys.insert(key)   // custom topics load in one 80-row search; no server paging yet
         }
     }
 
@@ -160,6 +199,14 @@ final class FeedStore {
     }
 
     private func visibleItems(topic: String, source: String) -> [Article] {
+        let cacheKey = browse == .sources ? "s:\(source)" : "t:\(topic)"
+        if let hit = rankedCache[cacheKey] { return hit }
+        let result = rankItems(topic: topic, source: source)
+        rankedCache[cacheKey] = result
+        return result
+    }
+
+    private func rankItems(topic: String, source: String) -> [Article] {
         if browse == .sources {
             let local = articles.filter { $0.sourceName == source }
             let base = (sourceResults[source] ?? []).isEmpty ? local : sourceResults[source]!
@@ -211,7 +258,11 @@ final class FeedStore {
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
             prefetchImages()
-            briefs = (try? await api.fetchBriefs()) ?? briefs
+            if let fetched = try? await api.fetchBriefs() {
+                // Animated: the brief card lands above an on-screen feed — a hard
+                // insert shoved every row down in a single frame.
+                withAnimation(Theme.Motion.feed) { briefs = fetched }
+            }
         } catch {
             hasLoadedOnce = true   // keep cache on screen; never a blocking error
         }
@@ -242,10 +293,10 @@ final class FeedStore {
         guard customResults[topic] == nil, !loadingCustom.contains(topic) else { return }
         loadingCustom.insert(topic)
         defer { loadingCustom.remove(topic) }
+        // On failure leave nil (retry on next selection) — caching `[]` bricked the
+        // topic for the whole session, on the product's flagship feature.
         if let results = try? await api.searchArticles(matching: topic) {
             withAnimation(Theme.Motion.feed) { customResults[topic] = results }
-        } else {
-            customResults[topic] = []
         }
     }
 
