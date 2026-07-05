@@ -56,7 +56,7 @@ struct BriefCard: View {
                                 Text(speech.isSpeaking ? "Stop" : "Listen")
                                     .font(Theme.Text.badge)
                             }
-                            .padding(.horizontal, 11).padding(.vertical, 4)
+                            .padding(.horizontal, 10).padding(.vertical, 3)
                             .glassChip(prominent: speech.isSpeaking)
                             .foregroundStyle(speech.isSpeaking ? .white : Theme.accent)
                         }
@@ -69,7 +69,7 @@ struct BriefCard: View {
                             Image(systemName: "xmark")
                                 .font(.caption2.bold())
                                 .foregroundStyle(.secondary)
-                                .padding(7)
+                                .padding(5)
                                 .background(.primary.opacity(0.06), in: Circle())
                         }
                         .buttonStyle(PressableStyle())
@@ -99,7 +99,7 @@ struct BriefCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10).padding(.vertical, 6)
+                .padding(.horizontal, 10).padding(.vertical, 5)
                 .frame(height: expandedBrief ? nil : 104)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
