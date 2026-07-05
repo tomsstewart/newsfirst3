@@ -59,10 +59,12 @@ struct ReaderListenButton: View {
                 // raw-HTML harvest second, feed excerpt as the floor.
                 var body = await ReaderExtractor.shared.extract(article.url)
                 if body.isEmpty { body = await ArticleText.paragraphs(from: article.url) }
-                var parts = [article.title] + body
-                if parts.count == 1, let excerpt = article.excerpt, !excerpt.isEmpty {
-                    parts.append(excerpt)   // paywalled page: at least the summary
+                // No title read-out — the reader is already showing it.
+                var parts = body
+                if parts.isEmpty, let excerpt = article.excerpt, !excerpt.isEmpty {
+                    parts = [excerpt]       // paywalled page: at least the summary
                 }
+                if parts.isEmpty { parts = [article.title] }   // never a dead button
                 preparing = false
                 Speech.shared.toggle(parts)
                 Analytics.capture("article_listen", ["source": article.sourceName])
