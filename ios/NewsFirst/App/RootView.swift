@@ -479,7 +479,9 @@ struct SplashView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.92)) { settled = true }
+            // v2.5's character: land with a visible bounce (Tom's call — brand moment,
+            // exempt from the no-overshoot feed rule).
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) { settled = true }
         }
     }
 }

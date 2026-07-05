@@ -217,8 +217,11 @@ struct ListRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            // Fills the row's full height (text column sets it via fixedSize below) —
+            // a fixed 100pt square left dead panel space under the thumbnail.
             ArticleImage(article: article, width: 220)
-                .frame(width: 100, height: 100)
+                .frame(width: 100)
+                .frame(maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
             VStack(alignment: .leading, spacing: 4) {
@@ -236,6 +239,7 @@ struct ListRow: View {
                 SourceLine(article: article).padding(.top, 4)
             }
         }
+        .fixedSize(horizontal: false, vertical: true)   // row height = text column's ideal; image fills it
         .padding(10)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
