@@ -70,6 +70,10 @@ final class FeedStore {
 
     var selectedTopic: String = FeedStore.topStories   // first launch lands on Top Stories, never a single topic
     var swipeProgress: CGFloat = 0   // live drag: -1..1 toward prev/next bar item
+    /// Visual bar selection during a swipe-commit settle: set the moment the commit
+    /// animation starts (so the target chip's ✕ grows WITH the pane glide), cleared
+    /// when the pane identity actually swaps at completion. Nil outside that window.
+    var barSelection: String?
     var browse: BrowseMode = .topics
     var selectedSource: String = ""
     private(set) var sources: [FeedSource] = []
@@ -92,10 +96,15 @@ final class FeedStore {
     var googleNewsCustoms: Bool {
         didSet {
             defaults.set(googleNewsCustoms, forKey: "googleNewsCustoms")
-            customResults = [:]   // drop the other engine's results; panes refetch on view
+            customEpoch += 1            // orphan in-flight fetches from the other engine
+            loadingCustom.removeAll()   // …and unblock an immediate re-search
+            customResults = [:]         // drop the other engine's results; panes refetch on view
             Task { if customTopics.contains(selectedTopic) { await loadCustom(selectedTopic) } }
         }
     }
+    /// Bumped whenever the custom-search engine flips: stale fetches check it before
+    /// writing, so a toggle mid-flight can't land the old engine's rows afterwards.
+    @ObservationIgnored private var customEpoch = 0
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
@@ -620,8 +629,10 @@ final class FeedStore {
             // look like it ignored the briefing.
             for t in customTopics {
                 Task {
-                    if let results = try? await api.searchArticles(matching: t) {
+                    let epoch = customEpoch
+                    if let results = await searchCustom(t), epoch == customEpoch {
                         withAnimation(Theme.Motion.feed) { customResults[t] = results }
+                        if googleNewsCustoms { enrichGoogle(t, epoch: epoch) }
                     }
                 }
             }
@@ -660,16 +671,55 @@ final class FeedStore {
 
     func loadCustom(_ topic: String) async {
         guard customResults[topic] == nil, !loadingCustom.contains(topic) else { return }
+        let epoch = customEpoch
         loadingCustom.insert(topic)
         defer { loadingCustom.remove(topic) }
         // On failure leave nil (retry on next selection) — caching `[]` bricked the
         // topic for the whole session, on the product's flagship feature.
+        guard let results = await searchCustom(topic), epoch == customEpoch else { return }
+        withAnimation(Theme.Motion.feed) { customResults[topic] = results }
+        if googleNewsCustoms { enrichGoogle(topic, epoch: epoch) }
+    }
+
+    /// Engine-aware custom search: our FTS index, or Google News RSS while the
+    /// experiment toggle is on. Google rows carry content-derived ids, so a re-search
+    /// keeps already-enriched rows (publisher URL + image) for stories still present
+    /// instead of regressing them to imageless.
+    private func searchCustom(_ topic: String) async -> [Article]? {
         if googleNewsCustoms {
-            if let results = try? await GoogleNewsRSS.fetch(topic: topic) {
-                withAnimation(Theme.Motion.feed) { customResults[topic] = results }
+            guard let fresh = try? await GoogleNewsRSS.fetch(topic: topic) else { return nil }
+            let old = Dictionary((customResults[topic] ?? []).map { ($0.id, $0) },
+                                 uniquingKeysWith: { a, _ in a })
+            return fresh.map { new in old[new.id].flatMap { $0.imageURL != nil ? $0 : nil } ?? new }
+        }
+        return try? await api.searchArticles(matching: topic)
+    }
+
+    /// Google News rows arrive imageless behind a news.google.com redirect: resolve
+    /// the first screenfuls' publisher URLs + og:image (two requests each, four at a
+    /// time) and swap them in place — same ids, so rows update without re-animating.
+    private func enrichGoogle(_ topic: String, epoch: Int) {
+        let batch = (customResults[topic] ?? []).prefix(16).filter {
+            $0.imageURL == nil && ($0.url.host()?.contains("news.google.com") ?? false)
+        }
+        guard !batch.isEmpty else { return }
+        Task {
+            var i = 0
+            while i < batch.count {
+                let chunk = Array(batch[i..<min(i + 4, batch.count)])
+                i += 4
+                let enriched = await withTaskGroup(of: Article?.self) { group in
+                    for a in chunk { group.addTask { await GoogleNewsRSS.enrich(a) } }
+                    var out: [Article] = []
+                    for await e in group { if let e { out.append(e) } }
+                    return out
+                }
+                guard epoch == customEpoch, googleNewsCustoms, var rows = customResults[topic] else { return }
+                for e in enriched {
+                    if let idx = rows.firstIndex(where: { $0.id == e.id }) { rows[idx] = e }
+                }
+                customResults[topic] = rows
             }
-        } else if let results = try? await api.searchArticles(matching: topic) {
-            withAnimation(Theme.Motion.feed) { customResults[topic] = results }
         }
     }
 

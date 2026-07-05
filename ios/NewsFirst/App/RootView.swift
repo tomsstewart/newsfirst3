@@ -85,6 +85,19 @@ struct RootView: View {
                 print("KOKORO_SELFTEST FAILED: \(error)")
             }
         }
+        .task {
+            // Headless smoke test for the Google News experiment: GN_SELFTEST=<query>
+            // exercises RSS parse → redirect resolution → og:image, prints a tally.
+            guard let q = ProcessInfo.processInfo.environment["GN_SELFTEST"] else { return }
+            let rows = (try? await GoogleNewsRSS.fetch(topic: q)) ?? []
+            var resolved = 0, images = 0
+            for a in rows.prefix(8) {
+                guard let e = await GoogleNewsRSS.enrich(a) else { continue }
+                resolved += 1
+                if e.imageURL != nil { images += 1 }
+            }
+            print("GN_SELFTEST rows=\(rows.count) resolved=\(resolved)/8 images=\(images)/8")
+        }
         .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
             await store.backfillIfSparse()
         }
@@ -194,13 +207,15 @@ struct RootView: View {
             }
             .animation(Theme.Motion.feed, value: store.mode)
             .animation(Theme.Motion.feed, value: store.isLoadingSelected)
-            // Non-adjacent chip taps swap the centre pane's identity — crossfade it
-            // (adjacent switches ride the carousel and never hit this transition).
-            .animation(Theme.Motion.feed, value: store.selectedTopic)
-            .animation(Theme.Motion.feed, value: store.selectedSource)
+            // NO .animation(value: selectedTopic) here: panes also re-identify at
+            // swipe-commit completion, and value-gating animated that identity swap
+            // into a visible blink on every committed swipe. Non-adjacent chip taps
+            // still crossfade — the tap site's withAnimation drives the panes'
+            // .transition(.opacity) through the transaction instead.
             .simultaneousGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { v in
+                        guard store.barSelection == nil else { return }   // commit still settling — let it land
                         // Latch the axis on first movement: re-evaluating per frame let a
                         // diagonal scroll flip horizontal mid-gesture — the feed lurched
                         // sideways by the full accumulated translation in one frame.
@@ -219,11 +234,17 @@ struct RootView: View {
                             let delta = v.translation.width < 0 ? 1 : -1
                             withAnimation(Theme.Motion.feed, completionCriteria: .logicallyComplete) {
                                 feedDrag = CGFloat(-delta) * w
-                                store.swipeProgress = CGFloat(delta)   // pill glides into the target chip in sync
+                                // Bar state lands NOW, not at completion: barSelection +
+                                // progress 0 pins pillRect to the target chip, so the ✕
+                                // grows and the pill glides while the panes settle — one
+                                // motion, no post-animation bar jump.
+                                store.barSelection = store.barItem(offset: delta)
+                                store.swipeProgress = 0
                             } completion: {
                                 KineticGate.suppressed = true
                                 if store.browse == .sources { store.selectedSource = store.barItem(offset: delta) }
                                 else { store.selectedTopic = store.barItem(offset: delta) }
+                                store.barSelection = nil   // selectedTopic took over — same chip, no reflow
                                 let landed = store.barItem(offset: 0)
                                 if store.customTopics.contains(landed) { Task { await store.loadCustom(landed) } }
                                 store.prefetchImages()
@@ -295,6 +316,7 @@ struct TopicBar: View {
                 // Animating the bar lets the pill glide, since it tracks live frames.
                 .animation(Theme.Motion.snappy, value: store.selectedTopic)
                 .animation(Theme.Motion.snappy, value: store.selectedSource)
+                .animation(Theme.Motion.snappy, value: store.barSelection)
                 .padding(.horizontal, 16)
                 .coordinateSpace(name: "chipbar")
                 .onPreferenceChange(ChipFramesKey.self) { chipFrames = $0 }
@@ -313,6 +335,9 @@ struct TopicBar: View {
             .onChange(of: store.selectedSource) { _, sel in
                 withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) }
             }
+            .onChange(of: store.barSelection) { _, sel in
+                if let sel { withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) } }
+            }
         }
     }
 
@@ -328,7 +353,7 @@ struct TopicBar: View {
     }
 
     private func chip(_ topic: String) -> some View {
-        let selected = store.selectedTopic == topic
+        let selected = (store.barSelection ?? store.selectedTopic) == topic
         let custom = store.customTopics.contains(topic)
         let labelContent = HStack(spacing: 5) {
             if custom {
@@ -370,8 +395,8 @@ struct TopicBar: View {
             labelContent
             .overlay { pillMaskedWhite(topic) { labelContent } }
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(Theme.panel.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), lineWidth: 1))
+            .background(Theme.panel.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.barSelection ?? store.selectedTopic)), in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.barSelection ?? store.selectedTopic)), lineWidth: 1))
             .foregroundStyle(.secondary)
             .background(GeometryReader { g in
                 Color.clear.preference(key: ChipFramesKey.self, value: [topic: g.frame(in: .named("chipbar"))])
@@ -399,7 +424,7 @@ struct TopicBar: View {
     /// Interpolated pill rect in chip-bar space (single source of truth).
     private func pillRect() -> CGRect? {
         let bar = store.browse == .topics ? store.topicBar : store.sourceBar
-        let current = store.browse == .topics ? store.selectedTopic : store.selectedSource
+        let current = store.barSelection ?? (store.browse == .topics ? store.selectedTopic : store.selectedSource)
         guard let idx = bar.firstIndex(of: current), let from = chipFrames[current] else { return nil }
         let p = store.swipeProgress
         let targetItem = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
@@ -472,7 +497,7 @@ struct TopicBar: View {
     #endif
 
     private func sourceChip(_ source: String) -> some View {
-        let selected = store.selectedSource == source
+        let selected = (store.barSelection ?? store.selectedSource) == source
         let labelContent = Text(source)
             .font(Theme.Text.meta)
             .lineLimit(1)
@@ -489,8 +514,8 @@ struct TopicBar: View {
             labelContent
                 .overlay { pillMaskedWhite(source) { labelContent } }
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Theme.panel.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), lineWidth: 1))
+                .background(Theme.panel.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.barSelection ?? store.selectedSource)), in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.barSelection ?? store.selectedSource)), lineWidth: 1))
                 .foregroundStyle(.secondary)
                 .background(GeometryReader { g in
                     Color.clear.preference(key: ChipFramesKey.self, value: [source: g.frame(in: .named("chipbar"))])
