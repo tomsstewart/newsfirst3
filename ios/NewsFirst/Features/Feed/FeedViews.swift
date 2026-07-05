@@ -568,6 +568,18 @@ struct TopicHeaderRow: View {
     let topic: String
     @Environment(FeedStore.self) private var store
     @State private var draft = ""
+    @State private var modeToast: String?
+    @State private var toastGen = 0
+
+    private func showToast(_ text: String) {
+        withAnimation(Theme.Motion.snappy) { modeToast = text }
+        toastGen += 1
+        let gen = toastGen
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            if gen == toastGen { withAnimation(Theme.Motion.card) { modeToast = nil } }
+        }
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -578,12 +590,20 @@ struct TopicHeaderRow: View {
                 if store.customTopics.contains(topic) {
                     // Custom topics: tri-state bell — all (blue, default) → high-only → off.
                     let level = store.customLevel(topic)
-                    Button { store.cycleCustomNotify(topic) } label: {
+                    Button {
+                        store.cycleCustomNotify(topic)
+                        switch store.customLevel(topic) {
+                        case .all: showToast("All notifications")
+                        case .high: showToast("High priority only")
+                        case .none: showToast("Notifications off")
+                        }
+                    } label: {
                         Image(systemName: level == .all ? "bell.badge.fill"
                                         : level == .high ? "bell.fill" : "bell.slash")
                             .font(.footnote)
-                            .foregroundStyle(level == .all ? Theme.accent
-                                           : level == .high ? Theme.tierHigh : .secondary)
+                            // blue = all · white = high only · greyed = off
+                            .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
+                                           : level == .high ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                             .padding(8)
                             .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
                             .accessibilityLabel(level == .all ? "Alerts: every match"
@@ -591,10 +611,15 @@ struct TopicHeaderRow: View {
                     }
                     .buttonStyle(PressableStyle())
                 } else {
-                    Button { store.toggleNotify(topic) } label: {
-                        Image(systemName: store.notifyTopics.contains(topic) ? "bell.badge.fill" : "bell.badge")
+                    Button {
+                        store.toggleNotify(topic)
+                        showToast(store.notifyTopics.contains(topic) ? "High priority only" : "Notifications off")
+                    } label: {
+                        // Preset topics cap at high-only by design ("all" on Business = spam):
+                        // white = high only · greyed = off.
+                        Image(systemName: store.notifyTopics.contains(topic) ? "bell.fill" : "bell.slash")
                             .font(.footnote)
-                            .foregroundStyle(store.notifyTopics.contains(topic) ? Theme.accent : .secondary)
+                            .foregroundStyle(store.notifyTopics.contains(topic) ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                             .padding(8)
                             .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
                     }
@@ -620,6 +645,19 @@ struct TopicHeaderRow: View {
             }
         }
         .padding(.top, 2)
+        .overlay(alignment: .bottomLeading) {
+            if let modeToast {
+                Text(modeToast)
+                    .font(Theme.Text.badge)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Theme.accent.opacity(0.95), in: Capsule())
+                    .offset(y: 30)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .allowsHitTesting(false)
+            }
+        }
+        .zIndex(1)   // the toast floats over the briefing card below
     }
 }
 
