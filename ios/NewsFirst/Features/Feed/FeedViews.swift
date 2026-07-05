@@ -42,7 +42,7 @@ struct BriefCard: View {
                         Image(systemName: "sparkles")
                             .font(.caption.bold())
                             .foregroundStyle(Theme.accent)
-                        Text(isTop ? "YOUR BRIEFING" : "\(FeedStore.displayName(topic).uppercased()) · TODAY")
+                        Text(isTop ? "DAILY BRIEFING" : "\(FeedStore.displayName(topic).uppercased()) · TODAY")
                             .font(Theme.Text.badge)
                             .foregroundStyle(.secondary)
                             .kerning(0.8)

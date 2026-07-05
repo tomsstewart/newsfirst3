@@ -501,11 +501,17 @@ final class FeedStore {
             withAnimation(Theme.Motion.feed) { articles = fresh; hasLoadedOnce = true }
             saveCache(fresh)
             prefetchImages()
-            // Custom topics live server-side only — warm them with the feed so swiping
-            // into one lands on content, not a blank pane waiting for its first search.
-            for t in customTopics where customResults[t] == nil {
-                Task { await loadCustom(t) }
+            // Custom topics re-search on EVERY refresh (not just first load): the daily
+            // briefing leads with them, so stale custom results made pull-to-refresh
+            // look like it ignored the briefing.
+            for t in customTopics {
+                Task {
+                    if let results = try? await api.searchArticles(matching: t) {
+                        withAnimation(Theme.Motion.feed) { customResults[t] = results }
+                    }
+                }
             }
+            dismissedBriefs.removeAll()   // a manual refresh brings dismissed briefings back
             if let fetched = try? await api.fetchBriefs() {
                 // Animated: the brief card lands above an on-screen feed — a hard
                 // insert shoved every row down in a single frame.
