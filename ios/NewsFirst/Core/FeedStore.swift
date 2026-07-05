@@ -68,7 +68,7 @@ final class FeedStore {
     private(set) var isRefreshing = false
     private(set) var hasLoadedOnce = false
 
-    var selectedTopic: String = "world"
+    var selectedTopic: String = FeedStore.topStories   // first launch lands on Top Stories, never a single topic
     var swipeProgress: CGFloat = 0   // live drag: -1..1 toward prev/next bar item
     var browse: BrowseMode = .topics
     var selectedSource: String = ""
@@ -88,6 +88,14 @@ final class FeedStore {
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll() } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
+    /// EXPERIMENT: custom columns from Google News RSS instead of our FTS (Settings toggle).
+    var googleNewsCustoms: Bool {
+        didSet {
+            defaults.set(googleNewsCustoms, forKey: "googleNewsCustoms")
+            customResults = [:]   // drop the other engine's results; panes refetch on view
+            Task { if customTopics.contains(selectedTopic) { await loadCustom(selectedTopic) } }
+        }
+    }
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
@@ -102,6 +110,7 @@ final class FeedStore {
         appearance = Appearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .auto
         regionPref = RegionBucket(rawValue: defaults.string(forKey: "regionPref") ?? "") ?? .auto
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
+        googleNewsCustoms = defaults.bool(forKey: "googleNewsCustoms")
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
@@ -141,8 +150,14 @@ final class FeedStore {
         var adj: Double = a.imageURL == nil ? -4 : 0
         if let regions = a.regions, !regions.isEmpty {
             let r = Set(regions)
-            if !r.isDisjoint(with: home) { adj += 12 }                 // my market's story
-            else if r.isSubset(of: Self.marketCodes) { adj -= 8 }      // exclusively someone else's market
+            if !r.isDisjoint(with: home) {
+                adj += 12                                              // my market's story
+            } else if r.isSubset(of: Self.marketCodes), a.tier != .high {
+                // Foreign-market domestic news (mostly politics) barely travels…
+                // with two exceptions: US stories interest everyone somewhat (-4,
+                // not -10), and BREAKING transcends borders entirely (no demotion).
+                adj -= r.isSubset(of: ["US", "CA"]) ? 4 : 10
+            }
         }
         // Corroboration: a story multiple independent outlets chose to cover matters
         // more than a single-source feature, even below the breaking threshold.
@@ -649,7 +664,11 @@ final class FeedStore {
         defer { loadingCustom.remove(topic) }
         // On failure leave nil (retry on next selection) — caching `[]` bricked the
         // topic for the whole session, on the product's flagship feature.
-        if let results = try? await api.searchArticles(matching: topic) {
+        if googleNewsCustoms {
+            if let results = try? await GoogleNewsRSS.fetch(topic: topic) {
+                withAnimation(Theme.Motion.feed) { customResults[topic] = results }
+            }
+        } else if let results = try? await api.searchArticles(matching: topic) {
             withAnimation(Theme.Motion.feed) { customResults[topic] = results }
         }
     }

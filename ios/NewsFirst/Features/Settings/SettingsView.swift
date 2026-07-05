@@ -188,6 +188,18 @@ struct SettingsView: View {
                     section("Account", icon: "person.crop.circle") {
                         AccountSection()
                     }
+
+                    section("Experimental", icon: "testtube.2", footer: "Trial features that may disappear.") {
+                        Toggle(isOn: $store.googleNewsCustoms) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Google News custom topics").font(Theme.Text.rowTitle)
+                                Text("Custom columns search Google News instead of NewsFirst sources while this is on.")
+                                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(Theme.accent)
+                    }
                 }
                 .padding(16)
                 .padding(.bottom, 30)

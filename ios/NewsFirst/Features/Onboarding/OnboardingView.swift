@@ -1,21 +1,40 @@
 import SwiftUI
 
-/// First launch: welcome → pick topics → in. Topics BEFORE any sign-in ask
-/// (v2's funnel died at topic selection — 38.5% — so this flow is two taps minimum).
+/// First launch: welcome → pick topics → sign in → in. Topics BEFORE the sign-in ask
+/// (v2's funnel died at topic selection — 38.5% — so value comes before the account).
 struct OnboardingView: View {
+    /// Tom's call (2026-07-05): the app requires an account. ⚠️ App Review rejected
+    /// v2 (1.0.2, guideline 5.1.1(v)) for exactly this — flip to false to restore
+    /// guest browsing if the 2.0.0 review pushes back.
+    static let requiresAuth = true
+
     @Environment(FeedStore.self) private var store
     @Binding var done: Bool
     @State private var page = 0
     @State private var picked: Set<String> = ["world", "tech", "business"]
     @State private var pulse = false
+    @State private var showAuthSheet = false
+    @State private var auth = AuthClient.shared
 
     var body: some View {
         VStack(spacing: 0) {
-            if page == 0 { welcome } else { topicPicker }
+            switch page {
+            case 0: welcome
+            case 1: topicPicker
+            default: signInGate
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.canvas)
         .onAppear { Analytics.capture("onboarding_start") }
+        .sheet(isPresented: $showAuthSheet) { AuthView().preferredColorScheme(store.appearance.scheme) }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn, page == 2 {
+                showAuthSheet = false
+                Analytics.capture("onboarding_complete", ["signed_in": true])
+                withAnimation(Theme.Motion.feed) { done = true }
+            }
+        }
     }
 
     private var welcome: some View {
@@ -69,7 +88,11 @@ struct OnboardingView: View {
                 store.enabledTopics = FeedStore.presetTopics.filter { picked.contains($0) }
                 store.selectedTopic = store.enabledTopics.first ?? "world"
                 Analytics.capture("topics_selected", ["topics": Array(picked), "count": picked.count, "is_initial_setup": true])
-                withAnimation(Theme.Motion.feed) { done = true }
+                if Self.requiresAuth, !auth.isSignedIn {
+                    withAnimation(Theme.Motion.feed) { page = 2 }
+                } else {
+                    withAnimation(Theme.Motion.feed) { done = true }
+                }
             } label: {
                 Text("Start reading")
                     .font(Theme.Text.cardTitle)
@@ -83,5 +106,37 @@ struct OnboardingView: View {
             .padding(.bottom, 40)
         }
         .padding(.horizontal, 24)
+    }
+
+    /// Final gate: alerts, briefings and synced topics all hang off the account.
+    private var signInGate: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(Theme.accent)
+            Text("One last thing")
+                .font(Theme.Text.hero)
+            Text("Your topics, breaking-news alerts and the daily spoken briefing live on your account.")
+                .font(Theme.Text.excerpt)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+            Spacer()
+            Button {
+                showAuthSheet = true
+            } label: {
+                Text("Sign in to start reading")
+                    .font(Theme.Text.cardTitle)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(Theme.selectionGradient, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(PressableStyle())
+            .padding(.horizontal, 24)
+            .padding(.bottom, 40)
+            .onAppear { Analytics.capture("onboarding_auth_gate") }
+        }
     }
 }

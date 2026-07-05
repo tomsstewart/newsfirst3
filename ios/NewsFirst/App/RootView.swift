@@ -7,7 +7,10 @@ struct RootView: View {
     @State private var showSplash = true
     @State private var showAuth = false
     @State private var showInbox = false
+    @State private var showVoiceOffer = false
+    @State private var auth = AuthClient.shared
     @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @AppStorage("hdVoicePrompted") private var hdVoicePrompted = false
 
     var body: some View {
         @Bindable var store = store
@@ -43,7 +46,14 @@ struct RootView: View {
         .sheet(isPresented: $showAuth) { AuthView().preferredColorScheme(store.appearance.scheme) }
         .sheet(item: $store.story) { StoryView(seed: $0).preferredColorScheme(store.appearance.scheme) }
         .sheet(isPresented: $showInbox) { BreakingInboxView().preferredColorScheme(store.appearance.scheme) }
+        .sheet(isPresented: $showVoiceOffer) { VoiceOfferView().preferredColorScheme(store.appearance.scheme) }
         .environment(\.openAuth, { showAuth = true })
+        // First sign-in → offer the HD voice once (also fires post-onboarding, since
+        // onboarding now ends signed-in).
+        .onChange(of: "\(auth.isSignedIn)-\(hasOnboarded)") {
+            offerVoiceIfDue()
+        }
+        .onAppear { offerVoiceIfDue() }
         .onAppear { Analytics.capture("app_open") }
         .task {
             PushManager.shared.openArticle = { articleID, _ in
@@ -84,6 +94,14 @@ struct RootView: View {
             }
             withAnimation(.easeOut(duration: 0.4)) { showSplash = false }
         }
+    }
+
+    /// One-time HD voice offer, shown once the user is signed in and past onboarding.
+    private func offerVoiceIfDue() {
+        guard !hdVoicePrompted, hasOnboarded, auth.isSignedIn,
+              KokoroEngine.shared.state == .notInstalled else { return }
+        hdVoicePrompted = true
+        showVoiceOffer = true
     }
 
     private var header: some View {
@@ -166,10 +184,17 @@ struct RootView: View {
                         pane(offset: 1, width: w)
                     }
                     .offset(x: -w + feedDrag)
+                    // A latched horizontal swipe owns the touch: the column must not
+                    // keep scrolling vertically underneath the carousel drag.
+                    .scrollDisabled(dragAxis == .horizontal)
                 }
             }
             .animation(Theme.Motion.feed, value: store.mode)
             .animation(Theme.Motion.feed, value: store.isLoadingSelected)
+            // Non-adjacent chip taps swap the centre pane's identity — crossfade it
+            // (adjacent switches ride the carousel and never hit this transition).
+            .animation(Theme.Motion.feed, value: store.selectedTopic)
+            .animation(Theme.Motion.feed, value: store.selectedSource)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { v in
@@ -229,6 +254,7 @@ struct RootView: View {
             }
         }
         .frame(width: width)
+        .transition(.opacity)
         .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.barItem(offset: offset))")
     }
 
@@ -261,6 +287,11 @@ struct TopicBar: View {
                         ForEach(store.sourceBar, id: \.self) { source in sourceChip(source).id(source) }
                     }
                 }
+                // Swipe-commit reflow: the newly selected chip grows its ✕ — un-animated,
+                // that snapped every chip (and the pill riding chipFrames) to new spots.
+                // Animating the bar lets the pill glide, since it tracks live frames.
+                .animation(Theme.Motion.snappy, value: store.selectedTopic)
+                .animation(Theme.Motion.snappy, value: store.selectedSource)
                 .padding(.horizontal, 16)
                 .coordinateSpace(name: "chipbar")
                 .onPreferenceChange(ChipFramesKey.self) { chipFrames = $0 }
@@ -351,6 +382,12 @@ struct TopicBar: View {
         )
         .onDrag {
             draggedTopic = topic
+            // Drops outside any drop target fire no callback — without this the bar
+            // wobbles forever after a move.
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                if draggedTopic == topic { withAnimation(Theme.Motion.snappy) { draggedTopic = nil } }
+            }
             return NSItemProvider(object: topic as NSString)
         }
         .onDrop(of: [.text], delegate: ChipDropDelegate(item: topic, dragged: $draggedTopic, store: store))

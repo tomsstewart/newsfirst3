@@ -137,10 +137,13 @@ export function parseFeed(xml: string): { title: string; link: string; pubDate?:
   }
   return items;
 }
+// &amp; FIRST: feeds double-encode ("Kelce&amp;#8217;s") — with numeric decoding running
+// before &amp;, the literal "&#8217;" survived into stored titles (Tom's screenshot).
 const decode = (s: string) =>
-  s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  s.replace(/&amp;/g, "&")
+   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-   .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ")
+   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&nbsp;/g, " ")
    .replace(/<[^>]+>/g, "").trim();
 
 export function normalizeUrl(raw: string): string {
