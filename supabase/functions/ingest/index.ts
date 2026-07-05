@@ -42,6 +42,14 @@ const sb = (env: Env) => ({
     });
     if (!r.ok && r.status !== 409) throw new Error(`POST ${path}: ${r.status} ${await r.text()}`);
   },
+  /// Insert returning the rows that actually landed (duplicates excluded) — honest counts.
+  async postRows(path: string, body: unknown, prefer: string): Promise<unknown[]> {
+    const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+      method: "POST", headers: { ...hdrs(env), Prefer: prefer }, body: JSON.stringify(body),
+    });
+    if (!r.ok && r.status !== 409) throw new Error(`POST ${path}: ${r.status} ${await r.text()}`);
+    return r.ok ? r.json() : [];
+  },
   async patch(path: string, body: unknown): Promise<void> {
     const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
       method: "PATCH", headers: hdrs(env), body: JSON.stringify(body),
@@ -56,14 +64,14 @@ const hdrs = (env: Env) => ({
 });
 
 // ---------- scoring (write-once; mirrors strategy §7.3) ----------
-const HARD_BOOSTS = ["breaking", "exclusive", "just in", "breach", "outage", "resigns", "dies", "war", "election result"];
+// Word-bounded: bare `includes` matched war→award/warning, dies→studies/bodies, breach→breaching.
+const HARD_BOOSTS = [/\bbreaking\b/i, /\bexclusive\b/i, /\bjust in\b/i, /\bbreach(es|ed)?\b/i, /\boutages?\b/i, /\bresigns\b/i, /\bdies\b/i, /\bwars?\b/i, /\belection results?\b/i];
 const DEMOTE = [/\bdeal(s)?\b.*\b(save|off|discount)\b/i, /\btop \d+\b/i, /\bbest .* to buy\b/i, /\breview\b:?/i, /\bhow to\b/i];
 
 export function baseScore(title: string, weight: number): { score: number; breakdown: Record<string, number> } {
   const b: Record<string, number> = {};
   b.source = weight >= 5 ? 30 : weight === 4 ? 20 : weight === 3 ? 10 : 5;
-  const t = title.toLowerCase();
-  if (HARD_BOOSTS.some((k) => t.includes(k))) b.boost = 30;
+  if (HARD_BOOSTS.some((re) => re.test(title))) b.boost = 30;
   if (DEMOTE.some((re) => re.test(title))) b.demoted = -100;
   const score = Math.max(0, Math.min(100, Object.values(b).reduce((a, x) => a + x, 0)));
   return { score, breakdown: b };
@@ -78,7 +86,8 @@ export function parseFeed(xml: string): { title: string; link: string; pubDate?:
       const m = b.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)</${n}>`, "i"));
       return m ? decode(m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim()) : undefined;
     };
-    const linkAttr = b.match(/<link[^>]*href="([^"]+)"/i)?.[1];
+    // Atom hrefs carry XML-escaped query strings; store the real URL or dedupe breaks.
+    const linkAttr = b.match(/<link[^>]*href="([^"]+)"/i)?.[1]?.replace(/&amp;/g, "&");
     const title = tag("title");
     const link = tag("link") || linkAttr;
     if (!title || !link) continue;
@@ -129,26 +138,45 @@ Return ONLY the JSON array.`;
       { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }) },
     );
-    if (r.status === 429 && attempt < 2) {   // free tier is 15 RPM — wait out the window
-      await sleep(4000 * (attempt + 1));
+    // 429 = RPM window; 5xx = "high demand" load-shedding (the 2026-07-05 briefs killer).
+    if ((r.status === 429 || r.status >= 500) && attempt < 2) {
+      await sleep(8000 * (attempt + 1));
       return enrichChunk(env, items, attempt + 1);
     }
     if (!r.ok) throw new Error(`gemini ${r.status}`);
     const j: any = await r.json();
-    const arr = JSON.parse(j.candidates[0].content.parts[0].text);
+    const arr = JSON.parse(geminiText(j));
     if (Array.isArray(arr) && arr.length === items.length) return arr;
     throw new Error("shape mismatch");
-  } catch {
+  } catch (e) {
     // Enrichment is an enhancement, not a dependency — fall back to source category only.
+    console.error("enrich:", e instanceof Error ? e.message : e);
     return items.map(() => ({ topics: [], entities: [], regions: [] }));
   }
+}
+
+/// Long JSON responses can arrive split across parts; missing candidates = explicit error.
+function geminiText(j: any): string {
+  const parts = j?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) throw new Error(`gemini empty response: ${JSON.stringify(j).slice(0, 300)}`);
+  return parts.map((p: any) => p.text ?? "").join("");
 }
 
 async function ogImage(pageUrl: string): Promise<string | null> {
   try {
     const r = await fetch(pageUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }, redirect: "follow", signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return null;
-    const head = (await r.text()).slice(0, 120_000);
+    if (!r.ok || !r.body) return null;
+    // Stream only the head — og:image lives there; never download whole multi-MB pages.
+    const reader = r.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let got = 0;
+    while (got < 120_000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); got += value.length;
+    }
+    reader.cancel().catch(() => {});
+    const head = new TextDecoder().decode(concat(chunks)).slice(0, 120_000);
     const m = head.match(/<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i) ??
               head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i) ??
               head.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
@@ -156,8 +184,15 @@ async function ogImage(pageUrl: string): Promise<string | null> {
   } catch { return null; }
 }
 
+function concat(chunks: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
 // ---------- health / auto-fix ladder ----------
-async function fetchFeed(src: Source): Promise<{ status: number; body?: string; finalUrl?: string }> {
+async function fetchFeed(src: Source): Promise<{ status: number; body?: string; finalUrl?: string; etag?: string; lastModified?: string }> {
   const attempt = (headers: Record<string, string>) =>
     fetch(src.feed_url, { headers, redirect: "follow", signal: AbortSignal.timeout(8000) });
   const cond: Record<string, string> = { "User-Agent": "NewsFirst/3.0 (+https://www.getnewsfirst.app)" };
@@ -172,7 +207,12 @@ async function fetchFeed(src: Source): Promise<{ status: number; body?: string; 
   if (!r) return { status: 0 };
   if (r.status === 304) return { status: 304 };
   const finalUrl = r.url !== src.feed_url ? r.url : undefined; // auto-fix step 2: persist permanent moves
-  return { status: r.status, body: r.ok ? await r.text() : undefined, finalUrl };
+  return {
+    status: r.status, body: r.ok ? await r.text() : undefined, finalUrl,
+    // Persisting these is what makes the conditional headers above ever fire.
+    etag: r.headers.get("etag") ?? undefined,
+    lastModified: r.headers.get("last-modified") ?? undefined,
+  };
 }
 
 function backoffSeconds(failStreak: number): number {
@@ -204,7 +244,10 @@ async function ingestTick(env: Env): Promise<void> {
       const candidates: Item[] = [];
       for (const p of parsed) {
         const url = normalizeUrl(p.link);
-        const published = p.pubDate && !isNaN(Date.parse(p.pubDate)) ? new Date(p.pubDate).toISOString() : now; // never NULL (v2 bug)
+        // Clamp to now: future pubDates (typos, wrong-tz feeds) would pin the freshness
+        // multiplier at max indefinitely and dodge the retention purge.
+        const published = p.pubDate && !isNaN(Date.parse(p.pubDate)) && Date.parse(p.pubDate) < Date.now()
+          ? new Date(p.pubDate).toISOString() : now; // never NULL (v2 bug)
         const { score, breakdown } = baseScore(p.title, src.weight);
         candidates.push({
           url, url_hash: await sha256(url), title: p.title.slice(0, 300),
@@ -222,14 +265,17 @@ async function ingestTick(env: Env): Promise<void> {
         }
         // No inline AI here: Gemini free tier is 20 req/DAY — enrichment runs as the
         // scheduled enrich_backfill batch (1 call of 100 headlines / 2h) instead.
-        await db.post("articles?on_conflict=url_hash", candidates, "resolution=ignore-duplicates,return=minimal");
-        inserted += candidates.length;
+        const landed = await db.postRows("articles?on_conflict=url_hash&select=id", candidates, "resolution=ignore-duplicates,return=representation");
+        inserted += landed.length;   // real inserts only, not the ~95% duplicates
       }
       await db.patch(`sources?id=eq.${src.id}`, {
         last_fetch_at: now, last_success_at: now, fail_streak: 0, health: "ok", backoff_until: null,
+        etag: res.etag ?? null, last_modified: res.lastModified ?? null,
         ...(candidates.length ? { last_new_item_at: now, poll_interval_s: Math.max(300, (src.poll_interval_s / 2) | 0) } : { poll_interval_s: Math.min((src.poll_interval_s * 1.5) | 0, 21600) }),
-        ...(res.finalUrl ? { feed_url: res.finalUrl } : {}),
       });
+      // Separate + tolerated: a redirect target that equals another source's feed_url
+      // violates the unique constraint; that must never fail the whole (healthy) poll.
+      if (res.finalUrl) await db.patch(`sources?id=eq.${src.id}`, { feed_url: res.finalUrl }).catch(() => {});
     } catch (e) {
       failed++;
       const streak = src.fail_streak + 1;
@@ -259,7 +305,8 @@ async function healthWatchdog(env: Env): Promise<void> {
     else await db.patch(`articles?id=eq.${a.id}`, { image_status: "none" }).catch(() => {});   // stop retrying hopeless ones
   }
   const cutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
-  const stale = await db.get<Source[]>(`sources?is_enabled=eq.true&health=neq.broken&last_success_at=lt.${cutoff}&select=id,name`);
+  // NULL last_success_at (never-succeeded source, e.g. bad seed URL) must also surface.
+  const stale = await db.get<Source[]>(`sources?is_enabled=eq.true&health=neq.broken&or=(last_success_at.lt.${cutoff},last_success_at.is.null)&created_at=lt.${cutoff}&select=id,name`);
   for (const s of stale) await db.patch(`sources?id=eq.${s.id}`, { health: "broken" });
   // TODO(phase 2): re-discovery from homepage <link rel="alternate"> for broken sources.
   // TODO(phase 4): push "source broken: <name>" to the owner through the app's own alert pipeline.
@@ -271,9 +318,11 @@ async function enrichBackfill(env: Env): Promise<number> {
   const db = sb(env);
   const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
   const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
-    `articles?published_at=gt.${since}&select=id,title,excerpt,topics&order=published_at.desc&limit=500`,
+    `articles?published_at=gt.${since}&select=id,title,excerpt,topics,regions&order=published_at.desc&limit=500`,
   );
-  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1).slice(0, 100);
+  // 200/call keeps up with ~2-2.5k articles/day across 12 daily runs (100 ran a deficit
+  // that aged out of the 48h window permanently unenriched). Still exactly one call.
+  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1).slice(0, 200);
   if (!thin.length) return 0;
   const meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation (quota: 20/day)
   let patched = 0;
@@ -282,7 +331,8 @@ async function enrichBackfill(env: Env): Promise<number> {
     if (!m.topics.length && !m.entities.length) continue;
     await db.patch(`articles?id=eq.${thin[i].id}`, {
       topics: [...new Set([...((thin[i] as any).topics ?? []), ...m.topics])],
-      entities: m.entities, regions: m.regions,
+      // Union: Gemini often returns [] regions; wholesale overwrite erased the ingest tag.
+      entities: m.entities, regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
     }).catch(() => {});
     patched++;
   }
@@ -291,8 +341,12 @@ async function enrichBackfill(env: Env): Promise<number> {
 
 
 /// AI overview: ONE Gemini call/day writes a 2-3 sentence brief per topic (quota: 20/day).
-async function generateBriefs(env: Env): Promise<number> {
+async function generateBriefs(env: Env): Promise<number | string> {
   const db = sb(env);
+  const today = new Date().toISOString().slice(0, 10);
+  // Idempotent: the 09:20 retry cron (and manual reruns) must not burn quota on a done day.
+  const existing = await db.get<unknown[]>(`briefs?brief_date=eq.${today}&select=topic&limit=1`).catch(() => []);
+  if (existing.length) return "already-done";
   const topics = ["world", "business", "economics", "tech", "ai", "science", "sports", "crypto", "gaming", "entertainment", "space", "climate", "health", "travel"];
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const rows = await db.get<{ title: string; topics: string[] }[]>(
@@ -307,21 +361,37 @@ async function generateBriefs(env: Env): Promise<number> {
   const prompt = `You write NewsFirst's daily topic briefs. For each topic below, write a tight 2-3 sentence overview of the day from its headlines: lead with the most important development, neutral tone, no hedging, no "headlines suggest". Return ONLY a JSON object mapping topic slug -> brief string.
 ${withNews.map((tp) => `## ${tp}\n${byTopic[tp].join("\n")}`).join("\n\n")}`;
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${env.GEMINI_API_KEY}`,
+    const call = (model: string) => fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
       { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } }) },
     );
-    if (!r.ok) throw new Error(`gemini ${r.status}`);
+    // One run per day: ride out 429 RPM windows and 5xx load-shedding (the 2026-07-05
+    // killer), then fall back to the bigger flash model — free-tier quotas are per-model.
+    let r: Response | null = null;
+    outer: for (const model of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) {
+      r = await call(model);
+      for (const wait of [10_000, 25_000]) {
+        if (r.ok) break outer;
+        if (r.status !== 429 && r.status < 500) break outer;   // hard error: no point retrying
+        await sleep(wait);
+        r = await call(model);
+      }
+      if (r.ok) break;
+    }
+    if (!r || !r.ok) throw new Error(`gemini ${r?.status} ${r ? (await r.text()).slice(0, 300) : ""}`);
     const j: any = await r.json();
-    const map = JSON.parse(j.candidates[0].content.parts[0].text) as Record<string, string>;
-    const today = new Date().toISOString().slice(0, 10);
+    const map = JSON.parse(geminiText(j)) as Record<string, string>;
     const payload = Object.entries(map)
       .filter(([tp, c]) => withNews.includes(tp) && typeof c === "string" && c.length > 30)
       .map(([tp, c]) => ({ topic: tp, brief_date: today, content: c }));
     if (payload.length) await db.post("briefs?on_conflict=topic,brief_date", payload, "resolution=merge-duplicates,return=minimal");
     return payload.length;
-  } catch { return -1; }
+  } catch (e) {
+    // -1 with no trace hid a dead feature for a day; the log line IS the fix.
+    console.error("briefs:", e instanceof Error ? e.message : e);
+    return -1;
+  }
 }
 
 Deno.serve(async (req: Request) => {
