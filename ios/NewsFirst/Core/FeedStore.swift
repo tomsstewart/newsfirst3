@@ -97,6 +97,7 @@ final class FeedStore {
         didSet {
             defaults.set(googleNewsCustoms, forKey: "googleNewsCustoms")
             customEpoch += 1            // orphan in-flight fetches from the other engine
+            enrichQueued.removeAll()
             loadingCustom.removeAll()   // …and unblock an immediate re-search
             customResults = [:]         // drop the other engine's results; panes refetch on view
             Task { if customTopics.contains(selectedTopic) { await loadCustom(selectedTopic) } }
@@ -105,6 +106,8 @@ final class FeedStore {
     /// Bumped whenever the custom-search engine flips: stale fetches check it before
     /// writing, so a toggle mid-flight can't land the old engine's rows afterwards.
     @ObservationIgnored private var customEpoch = 0
+    /// Rows already sent to (or through) enrichment this engine-epoch — one attempt each.
+    @ObservationIgnored private var enrichQueued: Set<UUID> = []
     var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
     var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
 
@@ -705,6 +708,7 @@ final class FeedStore {
             $0.imageURL == nil && ($0.url.host()?.contains("news.google.com") ?? false)
         }
         guard !batch.isEmpty else { return }
+        batch.forEach { enrichQueued.insert($0.id) }
         Task {
             var i = 0
             while i < batch.count {
@@ -722,6 +726,24 @@ final class FeedStore {
                 }
                 customResults[topic] = rows
             }
+        }
+    }
+
+    /// Rows beyond the eager first-16 enrich as they scroll into view (google mode):
+    /// one attempt per row per engine-epoch, swapped in place like the eager batch.
+    func enrichIfNeeded(_ a: Article, topic: String? = nil) {
+        guard googleNewsCustoms, a.isExternal, a.imageURL == nil,
+              a.url.host()?.contains("news.google.com") == true,
+              !enrichQueued.contains(a.id) else { return }
+        guard let t = topic ?? customResults.first(where: { $0.value.contains { $0.id == a.id } })?.key
+        else { return }
+        enrichQueued.insert(a.id)
+        let epoch = customEpoch
+        Task {
+            guard let e = await GoogleNewsRSS.enrich(a) else { return }
+            guard epoch == customEpoch, googleNewsCustoms, var rows = customResults[t] else { return }
+            if let i = rows.firstIndex(where: { $0.id == e.id }) { rows[i] = e }
+            customResults[t] = rows
         }
     }
 

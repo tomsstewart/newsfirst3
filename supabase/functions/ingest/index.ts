@@ -238,21 +238,27 @@ async function ogImage(pageUrl: string): Promise<string | null> {
   try {
     const r = await fetch(pageUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }, redirect: "follow", signal: AbortSignal.timeout(5000) });
     if (!r.ok || !r.body) return null;
-    // Stream only the head — og:image lives there; never download whole multi-MB pages.
+    // Stream until the tag shows up. 120KB used to cover every source, but Penske
+    // sites (Hollywood Reporter / Rolling Stone / Billboard) bury og: past 300KB of
+    // inline scripts — cap at 512KB and stop the moment a match exists.
+    const OG1 = /<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i;
+    const OG2 = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i;
+    const TW = /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i;
     const reader = r.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let got = 0;
-    while (got < 120_000) {
+    const dec = new TextDecoder();
+    let head = "";
+    while (head.length < 512_000) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value); got += value.length;
+      head += dec.decode(value, { stream: true });
+      if (head.includes("og:image") && (OG1.test(head) || OG2.test(head))) break;
     }
     reader.cancel().catch(() => {});
-    const head = new TextDecoder().decode(concat(chunks)).slice(0, 120_000);
-    const m = head.match(/<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i) ??
-              head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i) ??
-              head.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-    return m ? m[1] : null;
+    const m = head.match(OG1) ?? head.match(OG2) ?? head.match(TW);
+    // Entity-decode the URL — PMC sites emit &#038; inside the content attr.
+    return m
+      ? m[1].replace(/&amp;/g, "&").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+      : null;
   } catch { return null; }
 }
 

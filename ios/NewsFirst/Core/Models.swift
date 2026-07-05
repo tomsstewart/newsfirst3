@@ -14,6 +14,10 @@ struct Article: Codable, Identifiable, Hashable {
     let tier: Tier
     let clusterID: UUID?            // story identity — one story told by many sources
     let clusterSources: Int?        // distinct sources in the cluster (≥2 → Full Coverage)
+    /// True for rows fetched from outside our corpus (Google News experiment):
+    /// their source name isn't in our Sources browse, so it must not be a link.
+    /// Not in CodingKeys — server rows decode with the default.
+    var isExternal: Bool = false
 
     enum Tier: String, Codable { case high, medium, low }
 

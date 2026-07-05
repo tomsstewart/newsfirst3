@@ -180,6 +180,7 @@ struct ListFeedView: View {
                 expandedID = expandedID == article.id ? nil : article.id
             }
         }
+        .onAppear { store.enrichIfNeeded(article, topic: topic) }
     }
 }
 
@@ -351,6 +352,7 @@ struct ImmersiveFeedView: View {
                             // opens the reader (accidental scroll-taps were opening pages).
                             ImmersiveCard(article: article)
                                 .kineticEntrance(bandIndex * 3 + i + 1)
+                                .onAppear { store.enrichIfNeeded(article, topic: topic) }
                         }
                     }
                 }
@@ -387,6 +389,7 @@ struct FullFeedView: View {
                     ForEach(items) { article in
                         FullPage(article: article)
                             .frame(width: geo.size.width, height: geo.size.height)
+                            .onAppear { store.enrichIfNeeded(article) }
                     }
                 }
                 .scrollTargetLayout()

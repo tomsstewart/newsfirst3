@@ -315,6 +315,7 @@ struct TopicBar: View {
     @Environment(FeedStore.self) private var store
     @Namespace private var chipSelection
     @State private var chipFrames: [String: CGRect] = [:]
+    @State private var barScroll: String?   // scrollPosition target — animates as a real scroll
     @State private var pillEpoch = 0   // bumped on non-adjacent jumps → pill fades instead of travelling
     @State private var draggedTopic: String?
     @State private var addingTopic = false
@@ -348,15 +349,20 @@ struct TopicBar: View {
                 #endif
             }
             .scrollClipDisabled()
+            // scrollPosition, not proxy.scrollTo: scrollTo re-centres in its own detached
+            // animation that fought the pill/pane transactions — the visible mid-glide jump.
+            .scrollPosition(id: $barScroll, anchor: .center)
             .task { if store.browse == .sources { await store.loadSources() } }
             .onChange(of: store.selectedTopic) { _, sel in
-                withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) }
+                withAnimation(Theme.Motion.snappy) { barScroll = sel }
             }
             .onChange(of: store.selectedSource) { _, sel in
-                withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) }
+                withAnimation(Theme.Motion.snappy) { barScroll = sel }
             }
             .onChange(of: store.barSelection) { _, sel in
-                if let sel { withAnimation(Theme.Motion.snappy) { proxy.scrollTo(sel, anchor: .center) } }
+                // Swipe settle: re-centre on the same curve as the pane glide, so the
+                // bar, pill and panes move as one.
+                if let sel { withAnimation(Theme.Motion.feed) { barScroll = sel } }
             }
         }
     }

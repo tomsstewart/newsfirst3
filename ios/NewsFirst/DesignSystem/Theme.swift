@@ -163,6 +163,17 @@ struct SourceLink: View {
     @Environment(FeedStore.self) private var store
     let article: Article
     var body: some View {
+        // External rows (Google News experiment): the source isn't one of ours, so
+        // there's nowhere to jump — plain text, no link affordance.
+        if article.isExternal {
+            Text(article.sourceName)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else {
+            linked
+        }
+    }
+    private var linked: some View {
         Text(article.sourceName)
             .foregroundStyle(Theme.link)
             .underline()
