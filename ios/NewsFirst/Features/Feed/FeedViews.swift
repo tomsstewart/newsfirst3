@@ -101,7 +101,7 @@ struct BriefCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10).padding(.vertical, 8)
-                .frame(height: expandedBrief ? nil : 118)
+                .frame(height: expandedBrief ? nil : 104)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -334,7 +334,7 @@ struct ListRow: View {
                 .clipped()   // aspect-fill must not spill over the text; corners come from the tile's own clip
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
-        .frame(height: 118)
+        .frame(height: 104)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
