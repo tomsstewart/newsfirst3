@@ -192,8 +192,9 @@ struct ArticleExpandableCell: View {
         // Overlapped, the container animates cleanly between the two heights.
         ZStack(alignment: .top) {
             if expanded {
-                // Same footprint as a standard Immersive pane — expanding must not dwarf the feed.
-                OverlayCard(article: article, height: 330, showTier: false)
+                // Immersive HERO footprint (480): the expanded article gets the flagship
+                // treatment — 330 (secondary-card size) read too small, 560 dwarfed the feed.
+                OverlayCard(article: article, height: 480, showTier: false)
                     .transition(.opacity)      // crossfade; the container's height change is the animation
             } else {
                 ListRow(article: article)

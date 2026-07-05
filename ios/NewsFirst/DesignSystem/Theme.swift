@@ -123,9 +123,11 @@ struct PriorityBand: View {
     var body: some View {
         HStack {
             HStack(spacing: 8) {
-                Capsule().fill(Theme.tierColor(tier)).frame(width: 6, height: 18)
+                Capsule().fill(Theme.tierColor(tier)).frame(width: 6, height: 16)
                     .shadow(color: Theme.tierColor(tier).opacity(0.8), radius: 4)
-                Text(label).font(Theme.Text.cardTitle).foregroundStyle(.primary)
+                Text(label)
+                    .font(.system(.footnote, weight: .heavy))   // compact + punchy, not headline-sized
+                    .foregroundStyle(.primary)
             }
             Spacer()
             if let trailing { trailing }
