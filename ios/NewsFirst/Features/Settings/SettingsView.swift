@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var sources: [FeedSource] = []
+    @State private var showSources = false
     @State private var newTopic = ""
     var snapshotStatic = false   // ImageRenderer can't rasterise ScrollView; demo snapshots render flat
 
@@ -125,33 +126,18 @@ struct SettingsView: View {
                     }
 
                     section("Sources", icon: "antenna.radiowaves.left.and.right", footer: "Disabled sources disappear from every feed.") {
-                        if sources.isEmpty {
-                            HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 8)
-                        } else {
-                            VStack(spacing: 2) {
-                                ForEach(sources) { source in
-                                    Toggle(isOn: Binding(
-                                        get: { !store.disabledSources.contains(source.name) },
-                                        set: { on in
-                                            if on { store.disabledSources.remove(source.name) }
-                                            else { store.disabledSources.insert(source.name) }
-                                        }
-                                    )) {
-                                        HStack(spacing: 8) {
-                                            Text(source.name).font(Theme.Text.rowTitle)
-                                            Text(source.category.capitalized)
-                                                .font(Theme.Text.badge)
-                                                .padding(.horizontal, 7).padding(.vertical, 2)
-                                                .background(.primary.opacity(0.07), in: Capsule())
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .toggleStyle(.switch)
-                                    .tint(Theme.accent)
-                                    .padding(.vertical, 5)
+                        Button { showSources = true } label: {
+                            HStack {
+                                Text("Manage sources").font(Theme.Text.rowTitle).foregroundStyle(.primary)
+                                Spacer()
+                                if !sources.isEmpty {
+                                    Text("\(sources.count - store.disabledSources.count) of \(sources.count) on")
+                                        .font(Theme.Text.meta).foregroundStyle(.secondary)
                                 }
+                                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                             }
                         }
+                        .buttonStyle(PressableStyle())
                     }
 
                     section("Briefing voice", icon: "waveform", footer: "The studio voice is a one-time 86 MB download and runs entirely on this device — nothing leaves your phone.") {
@@ -201,6 +187,7 @@ struct SettingsView: View {
             await store.loadSources()   // cached in the store — no re-fetch per settings open
             sources = store.sources
         }
+        .sheet(isPresented: $showSources) { SourcesView() }
         #if os(macOS)
         .frame(width: 393, height: 780)
         #endif
@@ -292,6 +279,92 @@ struct AccountSection: View {
                 .buttonStyle(PressableStyle())
             }
         }
+    }
+}
+
+/// Sources get their own page: 119 toggles were swallowing the settings sheet.
+/// Sortable by category or A–Z.
+struct SourcesView: View {
+    @Environment(FeedStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    private enum Sort { case category, alphabetical }
+    @State private var sort: Sort = .category
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Sources").font(Theme.Text.headline)
+                Spacer()
+                Button {
+                    withAnimation(Theme.Motion.snappy) { sort = sort == .category ? .alphabetical : .category }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.up.arrow.down").font(.caption2.bold())
+                        Text(sort == .category ? "By category" : "A–Z").font(Theme.Text.badge)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .glassChip()
+                    .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(PressableStyle())
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.primary)
+                        .padding(9).background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    if store.sources.isEmpty {
+                        HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 30)
+                    } else if sort == .alphabetical {
+                        ForEach(store.sources.sorted { $0.name < $1.name }) { sourceRow($0) }
+                    } else {
+                        let grouped = Dictionary(grouping: store.sources, by: \.category)
+                        ForEach(grouped.keys.sorted(), id: \.self) { category in
+                            Text(category.uppercased())
+                                .font(Theme.Text.badge).foregroundStyle(.secondary).kerning(0.8)
+                                .padding(.top, 12).padding(.horizontal, 4)
+                            ForEach(grouped[category]!.sorted { $0.name < $1.name }) { sourceRow($0) }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 30)
+            }
+        }
+        .background(Theme.canvas)
+        .preferredColorScheme(store.appearance.scheme)
+        .task { await store.loadSources() }
+    }
+
+    private func sourceRow(_ source: FeedSource) -> some View {
+        Toggle(isOn: Binding(
+            get: { !store.disabledSources.contains(source.name) },
+            set: { on in
+                if on { store.disabledSources.remove(source.name) }
+                else { store.disabledSources.insert(source.name) }
+            }
+        )) {
+            HStack(spacing: 8) {
+                Text(source.name).font(Theme.Text.rowTitle)
+                if sort == .alphabetical {
+                    Text(source.category.capitalized)
+                        .font(Theme.Text.badge)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(.primary.opacity(0.07), in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(Theme.accent)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

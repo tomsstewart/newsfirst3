@@ -128,10 +128,15 @@ struct ListFeedView: View {
         ScrollView {
             LazyVStack(spacing: 13) {
                 BriefCard(topic: topic).kineticEntrance(0)
+                // A lone band header labels everything and informs nothing (Top Stories
+                // page one is legitimately all-High) — headers only when tiers mix.
+                let showHeaders = bands.count > 1
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
-                    PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
-                        .kineticEntrance(bandIndex * 3)
-                    if !(band.tier == .low && lowHidden) {
+                    if showHeaders {
+                        PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
+                            .kineticEntrance(bandIndex * 3)
+                    }
+                    if !(band.tier == .low && lowHidden && showHeaders) {
                         ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
                             articleCell(article)
                                 .kineticEntrance(bandIndex * 3 + i + 1)
@@ -274,14 +279,10 @@ struct ListRow: View {
     let article: Article
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Fills the row's full height (text column sets it via fixedSize below) —
-            // a fixed 100pt square left dead panel space under the thumbnail.
-            ArticleImage(article: article, width: 220)
-                .frame(width: 100)
-                .frame(maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
+        // ZStack, not HStack: the text column defines the row height, and the image is
+        // then PROPOSED exactly that height — deterministic full-bleed thumbnail
+        // (HStack+fixedSize left the image at its own ideal, hence the dead space).
+        ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(article.title)
                     .font(Theme.Text.rowTitle)
@@ -300,8 +301,14 @@ struct ListRow: View {
                 }
                 .padding(.top, 4)
             }
+            .padding(.leading, 112)   // 100pt image + 12pt gutter
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ArticleImage(article: article, width: 220)
+                .frame(width: 100)
+                .frame(idealHeight: 100, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
-        .fixedSize(horizontal: false, vertical: true)   // row height = text column's ideal; image fills it
         .padding(10)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -330,10 +337,13 @@ struct ImmersiveFeedView: View {
         ScrollView {
             LazyVStack(spacing: 13) {
                 BriefCard(topic: topic).kineticEntrance(0)
+                let showHeaders = bands.count > 1
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
-                    PriorityBand(tier: band.tier)
-                        .kineticEntrance(bandIndex * 3)
-                    if !(band.tier == .low && lowHidden) {
+                    if showHeaders {
+                        PriorityBand(tier: band.tier)
+                            .kineticEntrance(bandIndex * 3)
+                    }
+                    if !(band.tier == .low && lowHidden && showHeaders) {
                         ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
                             Button { store.reading = article } label: {
                                 ImmersiveCard(article: article)

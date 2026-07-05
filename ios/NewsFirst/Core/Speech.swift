@@ -86,7 +86,10 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
                     engineWired = true
                 }
                 if !audioEngine.isRunning { try audioEngine.start() }
-                playerNode.play()
+                // Buffer AHEAD: playback starts only once the first TWO segments are
+                // queued. Starting on segment one left a dead-air gap after the greeting
+                // while the (long) first story was still synthesizing.
+                let startAfter = min(1, parts.count - 1)
                 for (i, part) in parts.enumerated() {
                     try Task.checkCancellation()
                     var samples = try await KokoroEngine.shared.synthesize(part)
@@ -98,8 +101,10 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
                     samples.withUnsafeBufferPointer { src in
                         buffer.floatChannelData![0].update(from: src.baseAddress!, count: samples.count)
                     }
-                    playerNode.scheduleBuffer(buffer, completionHandler: nil)   // queues; playback already running
+                    playerNode.scheduleBuffer(buffer, completionHandler: nil)
+                    if i >= startAfter, !playerNode.isPlaying { playerNode.play() }
                 }
+                if !playerNode.isPlaying { playerNode.play() }   // single-segment briefings
                 try Task.checkCancellation()
                 // Drain: resume when the queue finishes playing.
                 await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in

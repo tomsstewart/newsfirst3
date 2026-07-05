@@ -122,11 +122,15 @@ final class FeedStore {
     private static let marketCodes: Set<String> = ["US", "CA", "GB", "IE", "AU", "NZ"]
 
     private func regionAdjust(_ a: Article, home: Set<String>) -> Double {
-        guard let regions = a.regions, !regions.isEmpty else { return 0 }
-        let r = Set(regions)
-        if !r.isDisjoint(with: home) { return 12 }              // my market's story
-        if r.isSubset(of: Self.marketCodes) { return -8 }       // exclusively someone else's market
-        return 0                                                 // world news stays neutral
+        // Imageless tellings rank slightly down — the region boost was surfacing
+        // picture-free live blogs into an image-starved first page.
+        var adj: Double = a.imageURL == nil ? -4 : 0
+        if let regions = a.regions, !regions.isEmpty {
+            let r = Set(regions)
+            if !r.isDisjoint(with: home) { adj += 12 }                 // my market's story
+            else if r.isSubset(of: Self.marketCodes) { adj -= 8 }      // exclusively someone else's market
+        }
+        return adj
     }
 
     /// The selected topic must always exist in the bar — otherwise no chip highlights,
@@ -315,19 +319,32 @@ final class FeedStore {
         return diversify(collapseDuplicates(ranked))
     }
 
-    /// Same story from many feeds: keep the best-ranked telling, drop echoes.
-    /// Cluster identity first (server-side semantic dedup), title-prefix fallback.
+    /// Same story from many feeds: keep ONE telling per cluster (title-prefix fallback),
+    /// preferring a telling WITH a picture — live blogs often rank highest but ship
+    /// imageless, which starved the page of photography.
     private func collapseDuplicates(_ input: [Article]) -> [Article] {
-        var seenClusters: Set<UUID> = []
-        var seenTitles: Set<String> = []
-        return input.filter { a in
+        var out: [Article] = []
+        var clusterPos: [UUID: Int] = [:]
+        var titlePos: [String: Int] = [:]
+        for a in input {
             if let c = a.clusterID {
-                guard seenClusters.insert(c).inserted else { return false }
+                if let pos = clusterPos[c] {
+                    if out[pos].imageURL == nil, a.imageURL != nil { out[pos] = a }
+                    continue
+                }
+                clusterPos[c] = out.count
             }
             let key = String(a.title.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.prefix(56))
-            guard !key.isEmpty else { return true }
-            return seenTitles.insert(key).inserted
+            if !key.isEmpty {
+                if let pos = titlePos[key] {
+                    if out[pos].imageURL == nil, a.imageURL != nil { out[pos] = a }
+                    continue
+                }
+                titlePos[key] = out.count
+            }
+            out.append(a)
         }
+        return out
     }
 
     var isLoadingSelected: Bool {

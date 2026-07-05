@@ -27,13 +27,13 @@ final class KokoroEngine {
 
     var voice: String { didSet { UserDefaults.standard.set(voice, forKey: "kokoroVoice") } }
     nonisolated static let voices: [(id: String, label: String)] = [
+        ("af_heart", "Heart · American"),
         ("bf_emma", "Emma · British"),
         ("bm_george", "George · British"),
-        ("af_heart", "Heart · American"),
     ]
 
     private init() {
-        voice = UserDefaults.standard.string(forKey: "kokoroVoice") ?? "bf_emma"
+        voice = UserDefaults.standard.string(forKey: "kokoroVoice") ?? "af_heart"
         if Self.assetsPresent { state = .ready }
     }
 
