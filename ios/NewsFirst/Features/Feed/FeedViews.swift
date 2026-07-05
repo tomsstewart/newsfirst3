@@ -222,30 +222,8 @@ struct OverlayCard: View {
                     Text(article.publishedAt, format: .relative(presentation: .named))
                         .font(Theme.Text.meta).foregroundStyle(.white.opacity(0.7))
                 }
-                // The card's action row, verbatim: Read · Listen · Full coverage.
                 if showRead {
-                    HStack(spacing: 8) {
-                        Button { store.reading = article } label: {
-                            Text("Read")
-                                .font(Theme.Text.rowTitle)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .glassChip()
-                        }
-                        .buttonStyle(PressableStyle())
-                        CardListenButton(article: article)
-                        if let n = article.clusterSources, n >= 2 {
-                            Button { store.story = article } label: {
-                                Text("Full coverage")
-                                    .font(Theme.Text.rowTitle)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .glassChip()
-                            }
-                            .buttonStyle(PressableStyle())
-                        }
-                        Spacer()
-                    }
+                    CardActionRow(article: article)
                 }
             }
             .padding(16)
@@ -453,15 +431,8 @@ struct FullPage: View {
                         .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(3)
                 }
-                Button { store.reading = article } label: {
-                    Text("Read article")
-                        .font(Theme.Text.cardTitle)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18).padding(.vertical, 9)
-                        .glassChip()
-                }
-                .buttonStyle(PressableStyle())
-                .padding(.top, 10)   // separated from the excerpt, sitting near the page's bottom edge
+                CardActionRow(article: article)
+                    .padding(.top, 10)   // separated from the excerpt, sitting near the page's bottom edge
             }
             .padding(22)
             .padding(.bottom, 12)
@@ -661,6 +632,45 @@ struct TopicHeaderRow: View {
     }
 }
 
+/// The card action row, verbatim spec: Full coverage (📰, left) · Read (📖, middle) ·
+/// Listen (🔊, right). Shared by expanded list cards, Immersive cards, and Full pages.
+struct CardActionRow: View {
+    let article: Article
+    @Environment(FeedStore.self) private var store
+
+    var body: some View {
+        HStack {
+            Group {
+                if let n = article.clusterSources, n >= 2 {
+                    Button { store.story = article } label: {
+                        pill("📰 Full coverage")
+                    }
+                    .buttonStyle(PressableStyle())
+                } else {
+                    Color.clear.frame(width: 1, height: 1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button { store.reading = article } label: {
+                pill("📖 Read")
+            }
+            .buttonStyle(PressableStyle())
+            .frame(maxWidth: .infinity)
+            CardListenButton(article: article)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private func pill(_ label: String) -> some View {
+        Text(label)
+            .font(Theme.Text.rowTitle)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .glassChip()
+    }
+}
+
 /// Compact listen-to-article for cards: same reader-engine extraction as the reader's
 /// floating pill, sitting beside Read article.
 struct CardListenButton: View {
@@ -679,17 +689,13 @@ struct CardListenButton: View {
             }
         } label: {
             HStack(spacing: 5) {
-                if preparing {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
-                        .font(.caption2.bold())
-                }
-                Text(preparing ? "…" : (speech.isSpeaking ? "Stop" : "Listen"))
+                if preparing { ProgressView().controlSize(.mini) }
+                Text(preparing ? "🔊 …" : (speech.isSpeaking ? "🔊 Stop" : "🔊 Listen"))
                     .font(Theme.Text.rowTitle)
+                    .lineLimit(1)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            .padding(.horizontal, 12).padding(.vertical, 8)
             .glassChip()
         }
         .buttonStyle(PressableStyle())
@@ -709,8 +715,8 @@ struct CoverageChip: View {
                 store.story = article
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "square.stack.3d.up.fill").font(.system(size: 8, weight: .bold))
-                    Text(compact ? "\(n) sources" : "Full coverage · \(n)")
+                    Text("📰")
+                    if !compact { Text("Full coverage · \(n)") }
                 }
                 .font(Theme.Text.badge)
                 .padding(.horizontal, 8).padding(.vertical, 3)
