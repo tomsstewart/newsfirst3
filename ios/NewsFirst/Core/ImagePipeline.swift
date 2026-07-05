@@ -54,7 +54,9 @@ enum ImagePipeline {
     }
 
     private static func fetch(_ url: URL) async -> CGImage? {
-        guard let (data, response) = try? await URLSession.shared.data(from: url) else {
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 10   // a hung proxy request must become a placeholder, not an eternal shimmer
+        guard let (data, response) = try? await URLSession.shared.data(for: req) else {
             return nil   // transport failure: transient, retry freely later
         }
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {

@@ -196,6 +196,18 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
+extension Speech {
+    /// Extract an article's body (reader-engine first) and speak it — no title.
+    func listenToArticle(_ article: Article) async {
+        var body = await ReaderExtractor.shared.extract(article.url)
+        if body.isEmpty { body = await ArticleText.paragraphs(from: article.url) }
+        if body.isEmpty, let excerpt = article.excerpt, !excerpt.isEmpty { body = [excerpt] }
+        if body.isEmpty { body = [article.title] }
+        toggle(body)
+        Analytics.capture("article_listen", ["source": article.sourceName])
+    }
+}
+
 /// Best-effort readable-text extraction for "read this article to me": fetch the page,
 /// scope to <article> when present, keep substantial <p> blocks. Paywalled/JS-only
 /// pages fall back to the title + excerpt the feed already carries.

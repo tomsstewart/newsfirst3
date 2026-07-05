@@ -228,6 +228,7 @@ struct OverlayCard: View {
                                 .glassChip()
                         }
                         .buttonStyle(PressableStyle())
+                        CardListenButton(article: article)
                     }
                     Spacer()
                     Text(article.publishedAt, format: .relative(presentation: .named))
@@ -236,17 +237,20 @@ struct OverlayCard: View {
                 // Expanded/immersive cards carry the story affordance as a real button —
                 // the small top chip alone was easy to miss.
                 if showRead, let n = article.clusterSources, n >= 2 {
-                    Button { store.story = article } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "square.stack.3d.up.fill").font(.caption2.bold())
-                            Text("See full coverage · \(n) sources").font(Theme.Text.rowTitle)
+                    HStack {
+                        Spacer()
+                        Button { store.story = article } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "square.stack.3d.up.fill").font(.system(size: 9, weight: .bold))
+                                Text("Full coverage · \(n)").font(Theme.Text.meta)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .glassChip()
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .glassChip()
+                        .buttonStyle(PressableStyle())
+                        Spacer()
                     }
-                    .buttonStyle(PressableStyle())
                 }
             }
             .padding(16)
@@ -621,6 +625,41 @@ struct TopicHeaderRow: View {
             }
         }
         .padding(.top, 2)
+    }
+}
+
+/// Compact listen-to-article for cards: same reader-engine extraction as the reader's
+/// floating pill, sitting beside Read article.
+struct CardListenButton: View {
+    let article: Article
+    @State private var speech = Speech.shared
+    @State private var preparing = false
+
+    var body: some View {
+        Button {
+            if speech.isSpeaking { speech.stop(); return }
+            guard !preparing else { return }
+            preparing = true
+            Task {
+                await Speech.shared.listenToArticle(article)
+                preparing = false
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if preparing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: speech.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
+                        .font(.caption2.bold())
+                }
+                Text(preparing ? "…" : (speech.isSpeaking ? "Stop" : "Listen"))
+                    .font(Theme.Text.rowTitle)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .glassChip()
+        }
+        .buttonStyle(PressableStyle())
     }
 }
 
