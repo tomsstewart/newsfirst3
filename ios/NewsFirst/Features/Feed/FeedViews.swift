@@ -219,36 +219,31 @@ struct OverlayCard: View {
                 HStack {
                     SourceLink(article: article).font(Theme.Text.meta)
                     Spacer()
-                    if showRead {
+                    Text(article.publishedAt, format: .relative(presentation: .named))
+                        .font(Theme.Text.meta).foregroundStyle(.white.opacity(0.7))
+                }
+                // The card's action row, verbatim: Read · Listen · Full coverage.
+                if showRead {
+                    HStack(spacing: 8) {
                         Button { store.reading = article } label: {
-                            Text("Read article")
+                            Text("Read")
                                 .font(Theme.Text.rowTitle)
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .padding(.horizontal, 14).padding(.vertical, 8)
                                 .glassChip()
                         }
                         .buttonStyle(PressableStyle())
                         CardListenButton(article: article)
-                    }
-                    Spacer()
-                    Text(article.publishedAt, format: .relative(presentation: .named))
-                        .font(Theme.Text.meta).foregroundStyle(.white.opacity(0.7))
-                }
-                // Expanded/immersive cards carry the story affordance as a real button —
-                // the small top chip alone was easy to miss.
-                if showRead, let n = article.clusterSources, n >= 2 {
-                    HStack {
-                        Spacer()
-                        Button { store.story = article } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "square.stack.3d.up.fill").font(.system(size: 9, weight: .bold))
-                                Text("Full coverage · \(n)").font(Theme.Text.meta)
+                        if let n = article.clusterSources, n >= 2 {
+                            Button { store.story = article } label: {
+                                Text("Full coverage")
+                                    .font(Theme.Text.rowTitle)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .glassChip()
                             }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .glassChip()
+                            .buttonStyle(PressableStyle())
                         }
-                        .buttonStyle(PressableStyle())
                         Spacer()
                     }
                 }
