@@ -44,6 +44,13 @@ struct RootView: View {
         .environment(\.openAuth, { showAuth = true })
         .onAppear { Analytics.capture("app_open") }
         .task {
+            PushManager.shared.openArticle = { articleID, _ in
+                Task { await store.openArticle(id: articleID) }
+            }
+            PushManager.shared.flushPendingOpen()   // cold start from a notification tap
+            await PushManager.shared.registerIfAuthorized()
+        }
+        .task {
             // Headless smoke test for the studio voice (CI/sim): KOKORO_SELFTEST=1.
             guard ProcessInfo.processInfo.environment["KOKORO_SELFTEST"] == "1" else { return }
             do {
@@ -127,7 +134,7 @@ struct RootView: View {
             .buttonStyle(PressableStyle())
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 2)    // safe area already clears the status bar; 12 was dead air
         .padding(.bottom, 10)
     }
 
