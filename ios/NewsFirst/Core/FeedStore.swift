@@ -467,16 +467,18 @@ final class FeedStore {
         }
     }
 
-    /// Notification tap → reader. Pools first (instant), server fallback for an
-    /// article that scrolled out of the cached window.
+    /// Notification tap → the alert landing card (hear it / read it), never straight
+    /// into the web reader. Pools first (instant), server fallback for an article
+    /// that scrolled out of the cached window.
+    var alertLanding: Article?
     func openArticle(id: String) async {
         let target = id.lowercased()
         let pools = articles + topicExtra.values.flatMap { $0 } + sourceResults.values.flatMap { $0 }
         if let hit = pools.first(where: { $0.id.uuidString.lowercased() == target }) {
-            reading = hit
+            alertLanding = hit
             return
         }
-        if let fetched = try? await api.fetchArticle(id: target) { reading = fetched }
+        if let fetched = try? await api.fetchArticle(id: target) { alertLanding = fetched }
     }
 
     /// The bell inbox: current breaking stories (high tier = notification-grade), one per cluster.

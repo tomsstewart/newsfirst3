@@ -47,6 +47,11 @@ struct RootView: View {
         .sheet(item: $store.story) { StoryView(seed: $0).preferredColorScheme(store.appearance.scheme) }
         .sheet(isPresented: $showInbox) { BreakingInboxView().preferredColorScheme(store.appearance.scheme) }
         .sheet(isPresented: $showVoiceOffer) { VoiceOfferView().preferredColorScheme(store.appearance.scheme) }
+        .sheet(item: $store.alertLanding) {
+            AlertLandingView(article: $0)
+                .presentationDetents([.medium, .large])
+                .preferredColorScheme(store.appearance.scheme)
+        }
         .environment(\.openAuth, { showAuth = true })
         // First sign-in → offer the HD voice once (also fires post-onboarding, since
         // onboarding now ends signed-in).

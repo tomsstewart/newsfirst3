@@ -42,7 +42,8 @@ struct BreakingInboxView: View {
                             Button { reading = a } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack {
-                                        TierBadge(tier: .high, loud: true)
+                                        // No tier badge: everything in this panel is high by
+                                        // definition — a HIGH tag on every row says nothing.
                                         Text(a.sourceName).font(Theme.Text.badge).foregroundStyle(Theme.accent)
                                         if let t = a.topics.first {
                                             Text(FeedStore.displayName(t).uppercased())
