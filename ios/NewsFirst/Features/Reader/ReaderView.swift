@@ -10,6 +10,10 @@ struct ReaderSheet: View {
     let article: Article
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    // Google News rows may still carry the news.google.com redirect (only the first
+    // screenfuls get pre-enriched) — resolve to the publisher before opening Safari,
+    // or the user lands on Google's consent wall instead of the story.
+    @State private var resolved: URL?
 
     var body: some View {
         #if os(iOS)
@@ -17,12 +21,17 @@ struct ReaderSheet: View {
         // access), so the button lives in our layer and the text comes from fetching
         // the page ourselves.
         ZStack(alignment: .bottomTrailing) {
-            SafariView(url: article.url, readerMode: store.readerMode)
-                .ignoresSafeArea()
-            ReaderListenButton(article: article)
-                .padding(.trailing, 16)
-                .padding(.bottom, 60)   // above Safari's own toolbar
+            if let url = resolved {
+                SafariView(url: url, readerMode: store.readerMode)
+                    .ignoresSafeArea()
+                ReaderListenButton(article: article)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 60)   // above Safari's own toolbar
+            } else {
+                ZStack { Theme.canvas.ignoresSafeArea(); ProgressView() }
+            }
         }
+        .task { resolved = await GoogleNewsRSS.realURL(for: article.url) }
         .onDisappear { Speech.shared.stop() }
         #else
         VStack(spacing: 0) {

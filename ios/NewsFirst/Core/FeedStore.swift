@@ -696,8 +696,10 @@ final class FeedStore {
     }
 
     /// Google News rows arrive imageless behind a news.google.com redirect: resolve
-    /// the first screenfuls' publisher URLs + og:image (two requests each, four at a
-    /// time) and swap them in place — same ids, so rows update without re-animating.
+    /// the first screenfuls' publisher URLs + og:image (three requests each, six at a
+    /// time — measured ~25s for 16 rows) and swap them in place — same ids, so rows
+    /// update without re-animating. Rows beyond 16 stay lean; the reader resolves
+    /// their URL on demand.
     private func enrichGoogle(_ topic: String, epoch: Int) {
         let batch = (customResults[topic] ?? []).prefix(16).filter {
             $0.imageURL == nil && ($0.url.host()?.contains("news.google.com") ?? false)
@@ -706,8 +708,8 @@ final class FeedStore {
         Task {
             var i = 0
             while i < batch.count {
-                let chunk = Array(batch[i..<min(i + 4, batch.count)])
-                i += 4
+                let chunk = Array(batch[i..<min(i + 6, batch.count)])
+                i += 6
                 let enriched = await withTaskGroup(of: Article?.self) { group in
                     for a in chunk { group.addTask { await GoogleNewsRSS.enrich(a) } }
                     var out: [Article] = []

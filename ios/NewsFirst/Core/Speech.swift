@@ -199,8 +199,9 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
 extension Speech {
     /// Extract an article's body (reader-engine first) and speak it — no title.
     func listenToArticle(_ article: Article) async {
-        var body = await ReaderExtractor.shared.extract(article.url)
-        if body.isEmpty { body = await ArticleText.paragraphs(from: article.url) }
+        let url = await GoogleNewsRSS.realURL(for: article.url)   // never read a consent wall aloud
+        var body = await ReaderExtractor.shared.extract(url)
+        if body.isEmpty { body = await ArticleText.paragraphs(from: url) }
         if body.isEmpty, let excerpt = article.excerpt, !excerpt.isEmpty { body = [excerpt] }
         if body.isEmpty { body = [article.title] }
         toggle(body)

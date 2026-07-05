@@ -98,6 +98,26 @@ struct RootView: View {
             }
             print("GN_SELFTEST rows=\(rows.count) resolved=\(resolved)/8 images=\(images)/8")
         }
+        .task {
+            // Store-level smoke test: GN_STORE_SELFTEST=<query> drives the REAL path —
+            // toggle on, add/select the topic, loadCustom, then watch enrichment land.
+            guard let q = ProcessInfo.processInfo.environment["GN_STORE_SELFTEST"] else { return }
+            store.googleNewsCustoms = true
+            if store.customTopics.contains(q) {
+                store.selectedTopic = q
+                Task { await store.loadCustom(q) }
+            } else {
+                store.addCustomTopic(q)
+            }
+            for _ in 0..<45 {
+                try? await Task.sleep(for: .seconds(2))
+                let rows = (store.customResults[q] ?? []).prefix(16)
+                let resolved = rows.filter { !($0.url.host()?.contains("news.google.com") ?? true) }.count
+                let imgs = rows.filter { $0.imageURL != nil }.count
+                print("GN_STORE_SELFTEST rows=\(store.customResults[q]?.count ?? 0) resolved16=\(resolved) images16=\(imgs)")
+                if imgs >= 6 { break }
+            }
+        }
         .task(id: "\(store.browse.rawValue)|\(store.selectedTopic)|\(store.selectedSource)") {
             await store.backfillIfSparse()
         }

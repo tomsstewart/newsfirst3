@@ -52,6 +52,14 @@ enum GoogleNewsRSS {
                            d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]))
     }
 
+    /// On-demand escape hatch for rows that haven't been image-enriched yet: the
+    /// reader and Listen must never land on news.google.com (it's a consent wall in
+    /// any embedded browser). Non-google URLs pass straight through.
+    static func realURL(for url: URL) async -> URL {
+        guard url.host()?.contains("news.google.com") == true else { return url }
+        return await resolveRealURL(url) ?? url
+    }
+
     // MARK: - Enrichment (publisher URL + image)
 
     /// Google stopped encoding the target URL in the article id (opaque AU_yqL…
