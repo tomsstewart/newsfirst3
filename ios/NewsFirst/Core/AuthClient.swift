@@ -132,6 +132,9 @@ final class AuthClient {
                 else { cont.resume(throwing: err ?? URLError(.userCancelledAuthentication)) }
             }
             session.presentationContextProvider = WebAuthPresenter.shared
+            // Fresh cookies every attempt: a failed run's web session otherwise
+            // auto-skips Google's account screen and replays the same failure.
+            session.prefersEphemeralWebBrowserSession = true
             session.start()
         }
         var kv: [String: String] = [:]

@@ -23,8 +23,11 @@ struct RootView: View {
             }
             .background(Theme.groupedBackground)
 
-            if !hasOnboarded && !showSplash {
-                OnboardingView(done: $hasOnboarded)
+            // The account requirement is STRUCTURAL: signed out (and requiresAuth) means
+            // the gate owns the screen — not a dismissible sheet. Closing a failed
+            // sign-in was dropping users straight into the feed with no account.
+            if (!hasOnboarded || (OnboardingView.requiresAuth && !auth.isSignedIn)) && !showSplash {
+                OnboardingView(done: $hasOnboarded, startAtGate: hasOnboarded)
                     .transition(.opacity)
                     .zIndex(2)
             }
@@ -60,11 +63,6 @@ struct RootView: View {
             offerVoiceIfDue()
         }
         .onAppear { offerVoiceIfDue() }
-        // The app requires an account (OnboardingView.requiresAuth): a signed-out
-        // session that already onboarded gets the sign-in page back at launch.
-        .onAppear {
-            if OnboardingView.requiresAuth, hasOnboarded, !auth.isSignedIn { showAuth = true }
-        }
         // Headless UI check (sim): AUTH_SELFTEST=1 presents the sign-in sheet at launch.
         .onAppear {
             if ProcessInfo.processInfo.environment["AUTH_SELFTEST"] == "1" { showAuth = true }

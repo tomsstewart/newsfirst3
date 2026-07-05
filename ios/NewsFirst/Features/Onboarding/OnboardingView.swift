@@ -10,7 +10,13 @@ struct OnboardingView: View {
 
     @Environment(FeedStore.self) private var store
     @Binding var done: Bool
-    @State private var page = 0
+    @State private var page: Int
+    /// Signed-out-but-onboarded relaunch (or sign-out): straight to the gate —
+    /// welcome, topics and the notifications ask are done; only the account is missing.
+    init(done: Binding<Bool>, startAtGate: Bool = false) {
+        _done = done
+        _page = State(initialValue: startAtGate ? 3 : 0)
+    }
     // No "world" preselect: Top Stories IS the front page — defaulting World on made
     // the first two chips read as the same thing twice. It stays available to pick.
     @State private var picked: Set<String> = ["tech", "business", "ai"]
@@ -32,6 +38,11 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.canvas)
         .onAppear { Analytics.capture("onboarding_start") }
+        .onAppear {
+            // Landing directly on the gate with a live session (e.g. a token refresh
+            // racing the relaunch): nothing to gate — leave immediately.
+            if page == 3, auth.isSignedIn { done = true }
+        }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             if signedIn, page == 3 {
                 Analytics.capture("onboarding_complete", ["signed_in": true])
