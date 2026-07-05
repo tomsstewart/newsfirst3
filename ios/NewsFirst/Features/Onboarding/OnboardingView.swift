@@ -11,7 +11,9 @@ struct OnboardingView: View {
     @Environment(FeedStore.self) private var store
     @Binding var done: Bool
     @State private var page = 0
-    @State private var picked: Set<String> = ["world", "tech", "business"]
+    // No "world" preselect: Top Stories IS the front page — defaulting World on made
+    // the first two chips read as the same thing twice. It stays available to pick.
+    @State private var picked: Set<String> = ["tech", "business", "ai"]
     @State private var pulse = false
     @State private var showAuthSheet = false
     @State private var auth = AuthClient.shared

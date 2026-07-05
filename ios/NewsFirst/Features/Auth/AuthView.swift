@@ -1,16 +1,13 @@
 import AuthenticationServices
 import SwiftUI
 
-/// Sign-in: email code + native Apple + Google (web flow). Apple works on the
-/// simulator now; device builds need the portal capability. Google lights up once
-/// its OAuth client is configured in Supabase.
+/// Sign-in: Apple + Google only (Tom's call — email OTP removed 2026-07-05; the
+/// AuthClient flow survives server-side if it's ever wanted back). Apple uses the
+/// system button, Google the official G logo — v2.5's treatment.
 struct AuthView: View {
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var auth = AuthClient.shared
-    @State private var email = ""
-    @State private var code = ""
-    @State private var codeSent = false
     @State private var busy = false
     @State private var error: String?
 
@@ -27,8 +24,10 @@ struct AuthView: View {
             }
             .padding(.top, 18)
 
-            Text("Your topics and alerts sync to your account — and keyword notifications need one.")
+            Text("Your topics, alerts and daily briefing sync to your account.")
                 .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+
+            Spacer()
 
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.email]
@@ -47,63 +46,34 @@ struct AuthView: View {
                 }
             }
             .signInWithAppleButtonStyle(.white)
-            .frame(height: 48)
+            .frame(height: 50)
             .clipShape(RoundedRectangle(cornerRadius: 14))
 
             Button {
                 finishProvider { try await auth.signInWithGoogle() }
             } label: {
-                HStack {
-                    Image(systemName: "globe")
-                    Text("Continue with Google").font(Theme.Text.cardTitle)
+                HStack(spacing: 10) {
                     Spacer()
-                    if busy { ProgressView().controlSize(.small) }
+                    Image("GoogleLogo")
+                        .resizable().scaledToFit()
+                        .frame(width: 19, height: 19)
+                    Text("Continue with Google")
+                        .font(.system(size: 19, weight: .medium))
+                    Spacer()
                 }
-                .padding(14)
+                .padding(.vertical, 13)
                 .foregroundStyle(.primary)
                 .background(Theme.panel, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+                .overlay(alignment: .trailing) {
+                    if busy { ProgressView().controlSize(.small).padding(.trailing, 16) }
+                }
             }
             .buttonStyle(PressableStyle())
 
-            Divider().padding(.vertical, 4)
-
-            Text(codeSent ? "Enter the 6-digit code we emailed you" : "Or use your email")
-                .font(Theme.Text.rowTitle)
-            if !codeSent {
-                TextField("you@example.com", text: $email)
-                    .textFieldStyle(.plain)
-                    #if os(iOS)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    #endif
-                    .padding(12)
-                    .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-            } else {
-                TextField("123456", text: $code)
-                    .textFieldStyle(.plain)
-                    #if os(iOS)
-                    .keyboardType(.numberPad)
-                    #endif
-                    .font(.system(.title3, design: .monospaced))
-                    .padding(12)
-                    .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-            }
             if let error {
                 Text(error).font(Theme.Text.meta).foregroundStyle(Theme.tierHigh)
             }
-            Button(action: submit) {
-                HStack {
-                    if busy { ProgressView().controlSize(.small) }
-                    Text(codeSent ? "Verify" : "Email me a code")
-                        .font(Theme.Text.cardTitle).foregroundStyle(.white)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Theme.selectionGradient, in: RoundedRectangle(cornerRadius: 14))
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(busy || (codeSent ? code.count < 6 : !email.contains("@")))
             Spacer()
         }
         .padding(.horizontal, 22)
@@ -121,25 +91,6 @@ struct AuthView: View {
                 try await flow()
                 await auth.syncTopics(preset: store.enabledTopics, custom: store.customTopics)
                 dismiss()
-            } catch {
-                self.error = error.localizedDescription
-            }
-            busy = false
-        }
-    }
-
-    private func submit() {
-        busy = true; error = nil
-        Task {
-            do {
-                if codeSent {
-                    try await auth.verify(email: email, code: code)
-                    await auth.syncTopics(preset: store.enabledTopics, custom: store.customTopics)
-                    dismiss()
-                } else {
-                    try await auth.requestCode(email: email)
-                    withAnimation(Theme.Motion.snappy) { codeSent = true }
-                }
             } catch {
                 self.error = error.localizedDescription
             }
