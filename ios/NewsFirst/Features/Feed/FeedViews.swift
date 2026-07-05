@@ -204,7 +204,6 @@ struct OverlayCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     if showTier { TierBadge(tier: article.tier, loud: true) }
-                    CoverageChip(article: article)
                     ScoreDebugBadge(article: article)
                 }
                 Text(article.title)
