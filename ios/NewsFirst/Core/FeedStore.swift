@@ -684,9 +684,21 @@ final class FeedStore {
 
     // MARK: - Custom topics
 
+    /// Presented when the free custom-topic ceiling is hit (RootView owns the sheet).
+    var paywall = false
+
     func addCustomTopic(_ raw: String) {
         let topic = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !topic.isEmpty, !customTopics.contains(topic), !Self.presetTopics.contains(topic) else { return }
+        // THE monetisation gate: 3 keywords free, unlimited on Premium. Existing
+        // topics are never taken away — the ceiling only stops new additions.
+        guard customTopics.count < Entitlements.freeCustomTopics || Entitlements.shared.isPremium else {
+            if defaults.bool(forKey: "hasOnboarded") {   // mid-onboarding: cap silently, pitch later
+                paywall = true
+                Analytics.capture("paywall_shown", ["trigger": "custom_topic_limit"])
+            }
+            return
+        }
         withAnimation(Theme.Motion.snappy) {
             customTopics.append(topic)
             selectedTopic = topic

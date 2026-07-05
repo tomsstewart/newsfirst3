@@ -47,6 +47,7 @@ struct RootView: View {
         .sheet(item: $store.story) { StoryView(seed: $0).preferredColorScheme(store.appearance.scheme) }
         .sheet(isPresented: $showInbox) { BreakingInboxView().preferredColorScheme(store.appearance.scheme) }
         .sheet(isPresented: $showVoiceOffer) { VoiceOfferView().preferredColorScheme(store.appearance.scheme) }
+        .sheet(isPresented: $store.paywall) { PaywallView().preferredColorScheme(store.appearance.scheme) }
         .sheet(item: $store.alertLanding) {
             AlertLandingView(article: $0)
                 .presentationDetents([.medium, .large])

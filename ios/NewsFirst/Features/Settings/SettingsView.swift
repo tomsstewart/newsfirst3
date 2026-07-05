@@ -361,6 +361,7 @@ struct AccountSection: View {
             VStack(alignment: .leading, spacing: 10) {
                 LabeledContent("Signed in as", value: auth.email ?? "—")
                     .font(Theme.Text.rowTitle)
+                PlanRow()
                 Button(role: .destructive) { confirmingSignOut = true } label: {
                     Text("Sign out")
                         .font(Theme.Text.cardTitle)
@@ -544,6 +545,40 @@ struct StudioVoiceControls: View {
 }
 
 /// Wrapping chip grid for topic toggles.
+/// Account plan line: Premium badge, or the upgrade hook for free accounts.
+struct PlanRow: View {
+    @Environment(FeedStore.self) private var store
+    @State private var ent = Entitlements.shared
+
+    var body: some View {
+        if ent.isPremium {
+            LabeledContent("Plan") {
+                HStack(spacing: 5) {
+                    Image(systemName: "crown.fill").font(.caption).foregroundStyle(Theme.tierMedium)
+                    Text("Premium")
+                }
+            }
+            .font(Theme.Text.rowTitle)
+        } else {
+            @Bindable var store = store
+            LabeledContent("Plan") {
+                Button {
+                    store.paywall = true
+                    Analytics.capture("paywall_shown", ["trigger": "settings"])
+                } label: {
+                    Text("Free · Upgrade")
+                        .font(Theme.Text.meta)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .glassChip(prominent: true)
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(PressableStyle())
+            }
+            .font(Theme.Text.rowTitle)
+        }
+    }
+}
+
 /// One colour-coded engine choice: tinted surface, radio check, plain-words blurb.
 struct EngineOptionRow: View {
     @Environment(FeedStore.self) private var store
