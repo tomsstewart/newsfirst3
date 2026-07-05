@@ -297,6 +297,8 @@ struct ListRow: View {
         // ZStack, not HStack: the text column defines the row height, and the image is
         // then PROPOSED exactly that height — deterministic full-bleed thumbnail
         // (HStack+fixedSize left the image at its own ideal, hence the dead space).
+        // Image bleeds edge-to-edge: flush to the tile's top/left/bottom, sharing the
+        // panel's corner radius. Zero padding between picture and tile edge.
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(article.title)
@@ -316,15 +318,16 @@ struct ListRow: View {
                 }
                 .padding(.top, 4)
             }
-            .padding(.leading, 112)   // 100pt image + 12pt gutter
+            .padding(.vertical, 10)
+            .padding(.trailing, 10)
+            .padding(.leading, 112)   // 100pt flush image + 12pt gutter
             .frame(maxWidth: .infinity, alignment: .leading)
             ArticleImage(article: article, width: 220)
                 .frame(width: 100)
                 .frame(idealHeight: 100, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipped()   // aspect-fill must not spill over the text; corners come from the tile's own clip
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
-        .padding(10)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
