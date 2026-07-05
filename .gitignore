@@ -8,3 +8,6 @@ ingest/.wrangler/
 demo/NewsFirstDemo
 demo/NewsFirst Demo.app/
 demo/out/
+ios/build/
+ios/DerivedData/
+*.xcuserstate
