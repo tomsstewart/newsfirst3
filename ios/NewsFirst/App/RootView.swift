@@ -267,7 +267,10 @@ struct RootView: View {
                         let commit = abs(v.translation.width) > w * 0.28 || abs(v.predictedEndTranslation.width) > w * 0.55
                         if commit {
                             let delta = v.translation.width < 0 ? 1 : -1
-                            withAnimation(Theme.Motion.feed, completionCriteria: .logicallyComplete) {
+                            // .removed, not .logicallyComplete: the latter fires while the
+                            // spring tail is still ~1% short, so the pane swap + drag reset
+                            // landed a frame early — the visible end-of-swipe jump.
+                            withAnimation(Theme.Motion.feed, completionCriteria: .removed) {
                                 feedDrag = CGFloat(-delta) * w
                                 // Bar state lands NOW, not at completion: barSelection +
                                 // progress 0 pins pillRect to the target chip, so the ✕
@@ -458,7 +461,10 @@ struct TopicBar: View {
         } label: {
             labelContent
             .overlay { pillMaskedWhite(topic) { labelContent } }
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            // ✕ hugs the pill's right edge (Tom: 14pt trailing read as floating).
+            .padding(.leading, 14)
+            .padding(.trailing, topic == FeedStore.topStories ? 14 : 9)
+            .padding(.vertical, 8)
             .background(Theme.panel.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.barSelection ?? store.selectedTopic)), in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.barSelection ?? store.selectedTopic)), lineWidth: 1))
             .foregroundStyle(.secondary)
