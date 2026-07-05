@@ -29,6 +29,8 @@ struct AuthView: View {
 
             Spacer()
 
+            // A matched pair, the way every app does it: same height, same radius,
+            // both white-on-black-text (Apple's .white style + Google's light spec).
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.email]
             } onCompletion: { result in
@@ -46,27 +48,26 @@ struct AuthView: View {
                 }
             }
             .signInWithAppleButtonStyle(.white)
-            .frame(height: 50)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(height: 52)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
 
             Button {
                 finishProvider { try await auth.signInWithGoogle() }
             } label: {
-                HStack(spacing: 10) {
-                    Spacer()
+                HStack(spacing: 8) {
                     Image("GoogleLogo")
                         .resizable().scaledToFit()
-                        .frame(width: 19, height: 19)
+                        .frame(width: 20, height: 20)
                     Text("Continue with Google")
                         .font(.system(size: 19, weight: .medium))
-                    Spacer()
+                        .foregroundStyle(.black.opacity(0.87))
                 }
-                .padding(.vertical, 13)
-                .foregroundStyle(.primary)
-                .background(Theme.panel, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.black.opacity(0.12), lineWidth: 1))
                 .overlay(alignment: .trailing) {
-                    if busy { ProgressView().controlSize(.small).padding(.trailing, 16) }
+                    if busy { ProgressView().controlSize(.small).padding(.trailing, 16).tint(.black) }
                 }
             }
             .buttonStyle(PressableStyle())

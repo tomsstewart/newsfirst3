@@ -59,6 +59,10 @@ struct RootView: View {
             offerVoiceIfDue()
         }
         .onAppear { offerVoiceIfDue() }
+        // Headless UI check (sim): AUTH_SELFTEST=1 presents the sign-in sheet at launch.
+        .onAppear {
+            if ProcessInfo.processInfo.environment["AUTH_SELFTEST"] == "1" { showAuth = true }
+        }
         // Touch the engine at launch: its init seeds the bundled voice into
         // Application Support (APFS clone, instant), so the first Listen is ready.
         .onAppear { _ = KokoroEngine.shared }

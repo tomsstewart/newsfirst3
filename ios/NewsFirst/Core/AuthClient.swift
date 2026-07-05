@@ -121,6 +121,10 @@ final class AuthClient {
         comps.queryItems = [
             .init(name: "provider", value: "google"),
             .init(name: "redirect_to", value: "newsfirst://auth-callback"),
+            // Always show Google's account chooser: the web session cookie was
+            // silently auto-selecting whichever account was last signed in (Tom's
+            // work account). GoTrue forwards this to Google's authorize URL.
+            .init(name: "prompt", value: "select_account"),
         ]
         let callback: URL = try await withCheckedThrowingContinuation { cont in
             let session = ASWebAuthenticationSession(url: comps.url!, callbackURLScheme: "newsfirst") { url, err in
