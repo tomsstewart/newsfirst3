@@ -191,7 +191,7 @@ private final class Worker: @unchecked Sendable {
         let styleValue = try ORTValue(
             tensorData: NSMutableData(bytes: &mutableStyle, length: 256 * MemoryLayout<Float>.size),
             elementType: .float, shape: [1, 256])
-        var speed: Float = 1.1   // +10% — default pacing read slow (Tom)
+        var speed: Float = 1.2   // +20% — default pacing read slow (Tom)
         let speedValue = try ORTValue(
             tensorData: NSMutableData(bytes: &speed, length: MemoryLayout<Float>.size),
             elementType: .float, shape: [1])

@@ -97,6 +97,19 @@ final class PushManager: NSObject {
         ]])
         _ = try? await URLSession.shared.data(for: req)
         defaults.set(token, forKey: "apnsToken")
+
+        // Keep the user's timezone fresh: the daily brief fires at 10:00 in THIS tz.
+        var tzReq = URLRequest(url: URL(string: SupabaseAPI.projectURL.absoluteString
+            + "/rest/v1/notification_settings?on_conflict=user_id")!)
+        tzReq.httpMethod = "POST"
+        tzReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        tzReq.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+        tzReq.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
+        tzReq.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        tzReq.httpBody = try? JSONSerialization.data(withJSONObject: [[
+            "user_id": uid, "tz": TimeZone.current.identifier,
+        ]])
+        _ = try? await URLSession.shared.data(for: tzReq)
     }
 
     /// Daily-brief opt-in/out — server-side so brief_push can filter before sending.
