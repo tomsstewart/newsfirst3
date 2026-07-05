@@ -70,9 +70,9 @@ enum GoogleNewsRSS {
     static func enrich(_ a: Article) async -> Article? {
         guard a.url.host()?.contains("news.google.com") == true,
               let real = await resolveRealURL(a.url) else { return nil }
-        let image = await ogImage(at: real)
-        return Article(id: a.id, url: real, title: a.title, excerpt: a.excerpt,
-                       imageURL: image, publishedAt: a.publishedAt, topics: a.topics,
+        let meta = await ogMeta(at: real)
+        return Article(id: a.id, url: real, title: a.title, excerpt: meta.description ?? a.excerpt,
+                       imageURL: meta.image, publishedAt: a.publishedAt, topics: a.topics,
                        regions: a.regions, sourceName: a.sourceName, score: a.score,
                        tier: a.tier, clusterID: a.clusterID, clusterSources: a.clusterSources)
     }
@@ -113,12 +113,14 @@ enum GoogleNewsRSS {
             .flatMap { URL(string: $0) }
     }
 
-    private static func ogImage(at url: URL) async -> URL? {
+    /// One head-fetch, two payloads: og:image fills the tile picture, og:description
+    /// fills the preview line (Google's RSS carries no excerpt at all).
+    private static func ogMeta(at url: URL) async -> (image: URL?, description: String?) {
         var req = URLRequest(url: url)
         req.timeoutInterval = 8
         req.setValue(safariUA, forHTTPHeaderField: "User-Agent")
         guard let (bytes, resp) = try? await URLSession.shared.bytes(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return (nil, nil) }
         var data = Data()
         data.reserveCapacity(131_072)
         do {
@@ -129,10 +131,17 @@ enum GoogleNewsRSS {
         } catch {}   // a partial read still parses
         // The cut can land mid-multibyte-char (UTF-8 then fails); Latin-1 never does,
         // and og:image URLs are ASCII either way.
-        guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return nil }
-        let content = first("<meta[^>]+(?:property|name)=[\"']og:image[\"'][^>]*content=[\"']([^\"']+)", in: html)
-                   ?? first("<meta[^>]+content=[\"']([^\"']+)[\"'][^>]*(?:property|name)=[\"']og:image", in: html)
-        return content.flatMap { URL(string: decode($0)) }
+        guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return (nil, nil) }
+        let image = metaContent("og:image", in: html).flatMap { URL(string: decode($0)) }
+        let desc = (metaContent("og:description", in: html) ?? metaContent("description", in: html))
+            .map { decode($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.count >= 20 ? $0 : nil }   // "Read more" stubs aren't a preview
+        return (image, desc)
+    }
+
+    private static func metaContent(_ prop: String, in html: String) -> String? {
+        first("<meta[^>]+(?:property|name)=[\"']\(prop)[\"'][^>]*content=[\"']([^\"']+)", in: html)
+            ?? first("<meta[^>]+content=[\"']([^\"']+)[\"'][^>]*(?:property|name)=[\"']\(prop)[\"']", in: html)
     }
 
     private static func first(_ pattern: String, in s: String) -> String? {
@@ -146,13 +155,25 @@ enum GoogleNewsRSS {
         }
     }
     private static func decode(_ s: String) -> String {
-        s.replacingOccurrences(of: "<!\\[CDATA\\[|\\]\\]>", with: "", options: .regularExpression)
+        var t = s.replacingOccurrences(of: "<!\\[CDATA\\[|\\]\\]>", with: "", options: .regularExpression)
          .replacingOccurrences(of: "&amp;", with: "&")
-         .replacingOccurrences(of: "&#39;|&apos;", with: "'", options: .regularExpression)
+         .replacingOccurrences(of: "&apos;", with: "'")
          .replacingOccurrences(of: "&quot;", with: "\"")
          .replacingOccurrences(of: "&lt;", with: "<")
          .replacingOccurrences(of: "&gt;", with: ">")
          .replacingOccurrences(of: "&nbsp;", with: " ")
-         .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Numeric entities in every publisher variant: &#39; &#039; &#x27; …
+        // (runs after &amp; so double-encoded &amp;#039; resolves too).
+        while let r = t.range(of: "&#[xX]?[0-9a-fA-F]{1,6};", options: .regularExpression) {
+            let entity = t[r]
+            let hex = entity.hasPrefix("&#x") || entity.hasPrefix("&#X")
+            let digits = entity.dropFirst(hex ? 3 : 2).dropLast()
+            if let v = UInt32(digits, radix: hex ? 16 : 10), let u = Unicode.Scalar(v) {
+                t.replaceSubrange(r, with: String(Character(u)))
+            } else {
+                t.replaceSubrange(r, with: " ")
+            }
+        }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

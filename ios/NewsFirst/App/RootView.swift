@@ -114,7 +114,8 @@ struct RootView: View {
                 let rows = (store.customResults[q] ?? []).prefix(16)
                 let resolved = rows.filter { !($0.url.host()?.contains("news.google.com") ?? true) }.count
                 let imgs = rows.filter { $0.imageURL != nil }.count
-                print("GN_STORE_SELFTEST rows=\(store.customResults[q]?.count ?? 0) resolved16=\(resolved) images16=\(imgs)")
+                let previews = rows.filter { !($0.excerpt ?? "").isEmpty }.count
+                print("GN_STORE_SELFTEST rows=\(store.customResults[q]?.count ?? 0) resolved16=\(resolved) images16=\(imgs) previews16=\(previews)")
                 if imgs >= 6 { break }
             }
         }
