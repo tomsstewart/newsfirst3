@@ -156,7 +156,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.accent)
             Text("One last thing")
                 .font(Theme.Text.hero)
-            Text("Your topics, breaking-news alerts and the daily spoken briefing live on your account.")
+            Text("NewsFirst is a notifications app — your alerts, topics and daily briefing need an account to live on.\nApple or Google is fine. Ten seconds.")
                 .font(Theme.Text.excerpt)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
