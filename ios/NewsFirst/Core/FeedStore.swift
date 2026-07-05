@@ -465,7 +465,7 @@ final class FeedStore {
         var parts: [String] = []
         if let brief = briefs[topic] { parts.append(brief) }
         let top = visibleItems(topic: topic, source: "").prefix(3)
-        let intros = ["The top story, from", "Next, from", "And finally, from"]
+        let intros = ["From", "Next, from", "Finally, from"]
         for (i, a) in top.enumerated() {
             var line = "\(intros[min(i, intros.count - 1)]) \(a.sourceName): \(Self.sentence(a.title))"
             if i == 0, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
@@ -493,7 +493,7 @@ final class FeedStore {
         var mentionedClusters: Set<UUID> = []
         let breaking = Array(breakingStories.prefix(2))
         if !breaking.isEmpty {
-            parts.append("We begin with breaking news.")
+            parts.append("Breaking news.")
             for (i, a) in breaking.enumerated() {
                 var line = "From \(a.sourceName): \(Self.sentence(a.title))"
                 if i == 0, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
@@ -518,7 +518,7 @@ final class FeedStore {
             customIndex += 1
         }
         if !customParts.isEmpty {
-            parts.append(breaking.isEmpty ? "First, the topics you follow." : "Next, the topics you follow.")
+            parts.append("Your topics.")
             parts.append(contentsOf: customParts)
         }
 
@@ -527,8 +527,8 @@ final class FeedStore {
             .filter { a in !mentionedIDs.contains(a.id) && (a.clusterID.map { !mentionedClusters.contains($0) } ?? true) }
             .prefix(3)
         if !top.isEmpty {
-            parts.append(parts.count <= 1 ? "Today's top stories." : "Now, the rest of today's top stories.")
-            let intros = ["The lead story, from", "In other news, from", "And finally, from"]
+            parts.append("Top stories.")
+            let intros = ["From", "Next, from", "Finally, from"]
             for (i, a) in top.enumerated() {
                 var line = "\(intros[min(i, intros.count - 1)]) \(a.sourceName): \(Self.sentence(a.title))"
                 if i < 2, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
@@ -541,7 +541,7 @@ final class FeedStore {
             parts.append(brief)
         }
         guard !parts.isEmpty else { return [] }
-        return ["\(greeting)."] + parts + ["That's your briefing."]
+        return ["\(greeting)."] + parts
     }
 
     private static func sentence(_ s: String) -> String {
