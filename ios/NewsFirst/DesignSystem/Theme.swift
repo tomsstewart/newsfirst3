@@ -117,6 +117,7 @@ struct TierBadge: View {
 struct PriorityBand: View {
     let tier: Article.Tier
     var trailing: AnyView? = nil
+    @Environment(\.colorScheme) private var scheme
     private var label: String {
         switch tier { case .high: "High Priority"; case .medium: "Medium Priority"; case .low: "Low Priority" }
     }
@@ -134,7 +135,8 @@ struct PriorityBand: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(
-            LinearGradient(colors: [Theme.tierColor(tier).opacity(0.22), .clear],
+            // Light mode needs far more pigment — 0.22 over ivory read as washed out.
+            LinearGradient(colors: [Theme.tierColor(tier).opacity(scheme == .light ? 0.42 : 0.22), .clear],
                            startPoint: .leading, endPoint: .trailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))

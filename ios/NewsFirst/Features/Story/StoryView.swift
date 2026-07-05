@@ -44,6 +44,13 @@ struct BreakingInboxView: View {
                                     HStack {
                                         TierBadge(tier: .high, loud: true)
                                         Text(a.sourceName).font(Theme.Text.badge).foregroundStyle(Theme.accent)
+                                        if let t = a.topics.first {
+                                            Text(FeedStore.displayName(t).uppercased())
+                                                .font(Theme.Text.badge)
+                                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                                .background(.primary.opacity(0.08), in: Capsule())
+                                                .foregroundStyle(.secondary)
+                                        }
                                         Spacer()
                                         Text(a.publishedAt, format: .relative(presentation: .named))
                                             .font(Theme.Text.meta).foregroundStyle(.secondary)
@@ -152,21 +159,29 @@ struct StoryView: View {
 
     private func coverageRow(_ a: Article) -> some View {
         Button { reading = a } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(a.sourceName)
-                        .font(Theme.Text.badge)
-                        .foregroundStyle(Theme.accent)
-                        .kerning(0.4)
-                    Spacer()
-                    Text(a.publishedAt, format: .relative(presentation: .named))
-                        .font(Theme.Text.meta).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 10) {
+                // A mixture: imaged tellings get their picture, text-only ones stay lean.
+                if a.imageURL != nil {
+                    ArticleImage(article: a, width: 220)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                Text(a.title)
-                    .font(Theme.Text.rowTitle)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text(a.sourceName)
+                            .font(Theme.Text.badge)
+                            .foregroundStyle(Theme.accent)
+                            .kerning(0.4)
+                        Spacer()
+                        Text(a.publishedAt, format: .relative(presentation: .named))
+                            .font(Theme.Text.meta).foregroundStyle(.secondary)
+                    }
+                    Text(a.title)
+                        .font(Theme.Text.rowTitle)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)

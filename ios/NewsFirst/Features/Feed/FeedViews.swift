@@ -100,7 +100,7 @@ struct BriefCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .frame(height: expandedBrief ? nil : 110)
+                .frame(height: expandedBrief ? nil : 112)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -299,7 +299,8 @@ struct ListRow: View {
                     SourceLine(article: article)
                 }
             }
-            .padding(.vertical, 5)
+            .padding(.top, 6)
+            .padding(.bottom, 9)      // the meta row was kissing the tile's bottom edge
             .padding(.trailing, 10)
             .padding(.leading, 112)   // 100pt flush image + 12pt gutter
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -309,7 +310,7 @@ struct ListRow: View {
                 .clipped()   // aspect-fill must not spill over the text; corners come from the tile's own clip
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
-        .frame(height: 110)
+        .frame(height: 112)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
@@ -643,7 +644,7 @@ struct CardActionRow: View {
             Group {
                 if let n = article.clusterSources, n >= 2 {
                     Button { store.story = article } label: {
-                        pill("newspaper.fill", "Full coverage")
+                        pill("newspaper.fill", "Coverage")
                     }
                     .buttonStyle(PressableStyle())
                 } else {

@@ -65,12 +65,18 @@ struct SupabaseAPI {
     /// matched "pineapple", which is below the floor for the flagship feature.
     func searchArticles(matching query: String, limit: Int = 80) async throws -> [Article] {
         let q = query.replacingOccurrences(of: ",", with: " ").trimmingCharacters(in: .whitespaces)
-        return try await get([
-            .init(name: "fts", value: "wfts(english).\(q)"),
-            .init(name: "select", value: Self.fields),
-            .init(name: "order", value: "published_at.desc"),
-            .init(name: "limit", value: String(limit)),
-        ])
+        // Relevance × freshness ranking server-side (search_feed RPC) — recency-only
+        // ordering front-loaded whichever blog posted last.
+        var req = URLRequest(url: Self.projectURL.appending(path: "rest/v1/rpc/search_feed"))
+        req.httpMethod = "POST"
+        req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(Self.publishableKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["q": q])
+        req.timeoutInterval = 10
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        return try JSONDecoder.api.decode([Article].self, from: data)
     }
 
     func fetchBriefs() async throws -> [String: String] {

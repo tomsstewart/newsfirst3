@@ -34,7 +34,22 @@ final class KokoroEngine {
 
     private init() {
         voice = UserDefaults.standard.string(forKey: "kokoroVoice") ?? "af_heart"
-        if Self.assetsPresent { state = .ready }
+        if Self.assetsPresent || Self.seedFromBundle() { state = .ready }
+    }
+
+    /// The voice ships INSIDE the app now (HF downloads were painfully slow for
+    /// users) — first launch copies the bundled assets into place in ~0.2s.
+    nonisolated private static func seedFromBundle() -> Bool {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        for asset in assets {
+            let dest = dir.appending(path: asset.file)
+            guard !fm.fileExists(atPath: dest.path) else { continue }
+            let parts = asset.file.split(separator: ".")
+            guard let src = Bundle.main.url(forResource: String(parts[0]), withExtension: String(parts[1])),
+                  (try? fm.copyItem(at: src, to: dest)) != nil else { return false }
+        }
+        return assetsPresent
     }
 
     // MARK: - Assets
@@ -48,7 +63,7 @@ final class KokoroEngine {
         ("bf_emma.bin", "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/bf_emma.bin", 0.02),
         ("bm_george.bin", "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/bm_george.bin", 0.01),
     ]
-    private static var assetsPresent: Bool {
+    nonisolated private static var assetsPresent: Bool {
         assets.allSatisfy { FileManager.default.fileExists(atPath: dir.appending(path: $0.file).path) }
     }
 
