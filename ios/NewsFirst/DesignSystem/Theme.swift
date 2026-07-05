@@ -155,23 +155,24 @@ struct SourceLine: View {
 }
 
 /// Tapping a source name jumps to that source's own feed (Sources browse mode).
+/// Deliberately a TAP GESTURE, not a Button: a button can fire on touch-up after a
+/// horizontal carousel swipe that started on it; a tap recognizer fails on movement.
 struct SourceLink: View {
     @Environment(FeedStore.self) private var store
     let article: Article
     var body: some View {
-        Button {
-            withAnimation(Theme.Motion.feed) {
-                store.browse = .sources
-                store.selectedSource = article.sourceName
+        Text(article.sourceName)
+            .foregroundStyle(Theme.link)
+            .underline()
+            .lineLimit(1)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(Theme.Motion.feed) {
+                    store.browse = .sources
+                    store.selectedSource = article.sourceName
+                }
+                Task { await store.loadSources(); await store.backfillIfSparse() }
             }
-            Task { await store.loadSources(); await store.backfillIfSparse() }
-        } label: {
-            Text(article.sourceName)
-                .foregroundStyle(Theme.link)
-                .underline()
-                .lineLimit(1)
-        }
-        .buttonStyle(.plain)
     }
 }
 
