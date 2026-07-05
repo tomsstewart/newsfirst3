@@ -332,9 +332,8 @@ struct TopicBar: View {
                         ForEach(store.sourceBar, id: \.self) { source in sourceChip(source).id(source) }
                     }
                 }
-                // Swipe-commit reflow: the newly selected chip grows its ✕ — un-animated,
-                // that snapped every chip (and the pill riding chipFrames) to new spots.
-                // Animating the bar lets the pill glide, since it tracks live frames.
+                // Chips are constant-width now (✕ always present), but bells/labels can
+                // still change — keep bar changes animated so nothing snaps.
                 .animation(Theme.Motion.snappy, value: store.selectedTopic)
                 .animation(Theme.Motion.snappy, value: store.selectedSource)
                 .animation(Theme.Motion.snappy, value: store.barSelection)
@@ -390,12 +389,13 @@ struct TopicBar: View {
                 Image(systemName: "flame.fill").font(.caption2)
             }
             Text(FeedStore.displayName(topic))
-            // v2.5's ✕ on the active chip: presets disable, customs delete. Replaces the
-            // long-press context menu, whose recognizer was also blocking drag-to-reorder.
-            if selected, topic != FeedStore.topStories {
+            // ✕ on EVERY chip (presets disable, customs delete) — not just the active
+            // one. Constant chip widths are also what keeps the focus animation clean:
+            // a selection-gated ✕ resized chips mid-glide and jittered the whole bar.
+            if topic != FeedStore.topStories {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption)
-                    .opacity(0.85)
+                    .opacity(selected ? 0.85 : 0.45)
                     .onTapGesture { store.removeFromBar(topic) }
             }
         }
