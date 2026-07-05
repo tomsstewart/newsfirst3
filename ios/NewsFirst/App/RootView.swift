@@ -246,11 +246,13 @@ struct TopicBar: View {
         }
     }
 
-    /// During a swipe, the chip the pill is travelling toward goes transparent in
-    /// proportion to progress, so the pill is revealed as it arrives — no flash.
+    /// Chip surface (panel + border) opacity, continuous through swipes: the chip the
+    /// pill is LEAVING fades its surface back in with progress, the chip it's ARRIVING
+    /// at fades out — `selected` alone flips only at commit completion, which left the
+    /// outgoing chip borderless until the animation finished.
     private func chipPanelOpacity(_ item: String, selected: Bool, bar: [String], current: String) -> Double {
-        if selected { return 0 }
         let p = store.swipeProgress
+        if selected { return abs(p) }   // pill departing → surface returns in sync
         guard p != 0, let idx = bar.firstIndex(of: current), !bar.isEmpty else { return 1 }
         let target = bar[(idx + (p > 0 ? 1 : -1) + bar.count) % bar.count]
         return item == target ? 1 - Double(abs(p)) : 1
@@ -285,7 +287,7 @@ struct TopicBar: View {
             .overlay { pillMaskedWhite(topic) { labelContent } }
             .padding(.horizontal, 14).padding(.vertical, 8)
             .background(Theme.panel.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), in: Capsule())
-            .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), lineWidth: 1))
+            .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(topic, selected: selected, bar: store.topicBar, current: store.selectedTopic)), lineWidth: 1))
             .foregroundStyle(.secondary)
             .background(GeometryReader { g in
                 Color.clear.preference(key: ChipFramesKey.self, value: [topic: g.frame(in: .named("chipbar"))])
@@ -400,7 +402,7 @@ struct TopicBar: View {
                 .overlay { pillMaskedWhite(source) { labelContent } }
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Theme.panel.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), in: Capsule())
-                .overlay(Capsule().strokeBorder(selected ? .clear : Theme.panelBorder.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), lineWidth: 1))
+                .overlay(Capsule().strokeBorder(Theme.panelBorder.opacity(chipPanelOpacity(source, selected: selected, bar: store.sourceBar, current: store.selectedSource)), lineWidth: 1))
                 .foregroundStyle(.secondary)
                 .background(GeometryReader { g in
                     Color.clear.preference(key: ChipFramesKey.self, value: [source: g.frame(in: .named("chipbar"))])
