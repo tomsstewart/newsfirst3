@@ -100,7 +100,7 @@ struct BriefCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .frame(height: expandedBrief ? nil : 104)
+                .frame(height: expandedBrief ? nil : 110)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -313,9 +313,9 @@ struct ListRow: View {
                     .lineLimit(2)
                 if let excerpt = article.excerpt, !excerpt.isEmpty {
                     Text(excerpt)
-                        .font(Theme.Text.excerpt)
+                        .font(.system(size: 13.5))   // +0.5 over footnote (Tom)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(2, reservesSpace: true)   // never fewer than 2 preview lines
                 }
                 Spacer(minLength: 0)
                 HStack(spacing: 8) {
@@ -333,7 +333,7 @@ struct ListRow: View {
                 .clipped()   // aspect-fill must not spill over the text; corners come from the tile's own clip
                 .overlay(alignment: .topLeading) { ScoreDebugBadge(article: article).padding(3) }
         }
-        .frame(height: 104)
+        .frame(height: 110)
         .background(Theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.panelBorder, lineWidth: 1))
