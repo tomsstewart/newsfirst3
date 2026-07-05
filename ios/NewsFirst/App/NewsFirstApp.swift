@@ -3,6 +3,9 @@ import SwiftUI
 @main
 struct NewsFirstApp: App {
     @State private var store = FeedStore()
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
+    #endif
 
     init() {
         #if os(iOS)

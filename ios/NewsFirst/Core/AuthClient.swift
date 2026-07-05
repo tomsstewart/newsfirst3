@@ -79,19 +79,15 @@ final class AuthClient {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard (resp as? HTTPURLResponse)?.statusCode == 200,
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let token = json["access_token"] as? String,
+              json["access_token"] is String,
               let user = json["user"] as? [String: Any],
               let uid = user["id"] as? String else {
             throw NSError(domain: "auth", code: 2, userInfo: [NSLocalizedDescriptionKey: "Wrong or expired code"])
         }
-        accessToken = token
-        userID = uid
-        self.email = email
-        UserDefaults.standard.set(token, forKey: "authToken")
-        UserDefaults.standard.set(uid, forKey: "authUserID")
-        UserDefaults.standard.set(email, forKey: "authEmail")
+        storeSession(json, fallbackEmail: email)
         Analytics.alias(userID: uid)
         Analytics.capture("login_success", ["method": "email_otp"])
+        PushManager.shared.afterSignIn()
     }
 
     /// Native Sign in with Apple: exchange the identity token for a Supabase session.
@@ -105,12 +101,15 @@ final class AuthClient {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard (resp as? HTTPURLResponse)?.statusCode == 200,
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let token = json["access_token"] as? String,
+              json["access_token"] is String,
               let user = json["user"] as? [String: Any],
               let uid = user["id"] as? String else {
             throw NSError(domain: "auth", code: 3, userInfo: [NSLocalizedDescriptionKey: Self.supabaseError(data) ?? "Apple sign-in failed"])
         }
-        adopt(token: token, uid: uid, email: user["email"] as? String, method: "apple")
+        storeSession(json, fallbackEmail: nil)
+        Analytics.alias(userID: uid)
+        Analytics.capture("login_success", ["method": "apple"])
+        PushManager.shared.afterSignIn()
     }
 
     /// OAuth web flow (Google): Supabase-hosted round trip in an
@@ -148,18 +147,15 @@ final class AuthClient {
               let uid = user["id"] as? String else {
             throw NSError(domain: "auth", code: 5, userInfo: [NSLocalizedDescriptionKey: "Couldn't load the signed-in profile"])
         }
-        adopt(token: token, uid: uid, email: user["email"] as? String, method: "google")
-    }
-
-    private func adopt(token: String, uid: String, email: String?, method: String) {
-        accessToken = token
-        userID = uid
-        self.email = email
-        UserDefaults.standard.set(token, forKey: "authToken")
-        UserDefaults.standard.set(uid, forKey: "authUserID")
-        UserDefaults.standard.set(email, forKey: "authEmail")
+        storeSession([
+            "access_token": token,
+            "refresh_token": kv["refresh_token"] as Any,
+            "expires_in": Double(kv["expires_in"] ?? "") as Any,
+            "user": user,
+        ], fallbackEmail: nil)
         Analytics.alias(userID: uid)
-        Analytics.capture("login_success", ["method": method])
+        Analytics.capture("login_success", ["method": "google"])
+        PushManager.shared.afterSignIn()
     }
 
     private static func supabaseError(_ data: Data) -> String? {
@@ -168,15 +164,23 @@ final class AuthClient {
     }
 
     func signOut() {
-        email = nil; accessToken = nil; userID = nil
-        for k in ["authToken", "authUserID", "authEmail"] { UserDefaults.standard.removeObject(forKey: k) }
+        let hadSession = accessToken != nil
+        if hadSession { Task { await PushManager.shared.retireDevice() } }
+        email = nil; accessToken = nil; userID = nil; refreshToken = nil; expiresAt = 0
+        for k in ["authToken", "authUserID", "authEmail", "authRefreshToken", "authExpiresAt"] {
+            UserDefaults.standard.removeObject(forKey: k)
+        }
         Analytics.capture("sign_out")
     }
 
     /// Push local topic prefs to topic_subscriptions (RLS: user's own rows).
+    /// notify_level: bell-toggled presets get 'high' (breaking only — high IS the push
+    /// tier since 0021), customs get 'all' (radar semantics: any match is the product).
     func syncTopics(preset: [String], custom: [String]) async {
-        guard let token = accessToken, let uid = userID else { return }
-        let rows = preset.map { ["user_id": uid, "topic": $0, "kind": "preset", "notify_level": "none"] }
+        guard let token = await validToken(), let uid = userID else { return }
+        let bells = Set(UserDefaults.standard.stringArray(forKey: "notifyTopics") ?? [])
+        let rows = preset.map { ["user_id": uid, "topic": $0, "kind": "preset",
+                                 "notify_level": bells.contains($0) ? "high" : "none"] }
                  + custom.map { ["user_id": uid, "topic": $0, "kind": "custom", "notify_level": "all"] }
         var req = URLRequest(url: SupabaseAPI.projectURL.appending(path: "rest/v1/topic_subscriptions"))
         req.httpMethod = "POST"

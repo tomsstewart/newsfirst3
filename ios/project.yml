@@ -25,7 +25,9 @@ targets:
     entitlements:
       path: NewsFirst/NewsFirst.entitlements
       properties:
-        com.apple.developer.applesignin: [Default]   # honored on sim now; device needs the portal capability
+        com.apple.developer.applesignin: [Default]   # portal capability ticked 2026-07-05
+        aps-environment: development                 # App Store export re-signs to production
+        com.apple.developer.usernotifications.time-sensitive: true   # breaking alerts
     dependencies:
       - package: Inject
       - package: MisakiSwift

@@ -112,10 +112,9 @@ final class PushManager: NSObject {
 
     // MARK: open-from-alert
 
-    func handleTap(userInfo: [AnyHashable: Any]) {
-        guard let articleID = userInfo["article_id"] as? String else { return }
-        let alertID = userInfo["alert_id"] as? String
-        Analytics.capture("notif_open", ["topic": userInfo["topic"] as? String ?? "?"])
+    func handleTap(article articleID: String?, alert alertID: String?, topic: String?) {
+        guard let articleID else { return }
+        Analytics.capture("notif_open", ["topic": topic ?? "?"])
         if let alertID { Task { await markOpened(alertID) } }
         if let openArticle { openArticle(articleID, alertID) }
         else { pendingOpen = (articleID, alertID) }
@@ -160,15 +159,19 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
     /// Alerts stay visible in the foreground — a breaking story is exactly when
     /// the user is most likely to already be in the app.
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse) async {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        // Pull the Sendable bits out before hopping actors ([AnyHashable: Any] can't cross).
         let userInfo = response.notification.request.content.userInfo
-        await MainActor.run { PushManager.shared.handleTap(userInfo: userInfo) }
+        let article = userInfo["article_id"] as? String
+        let alert = userInfo["alert_id"] as? String
+        let topic = userInfo["topic"] as? String
+        await MainActor.run { PushManager.shared.handleTap(article: article, alert: alert, topic: topic) }
     }
 }
 #endif

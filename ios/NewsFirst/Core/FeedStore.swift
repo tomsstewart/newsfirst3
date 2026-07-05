@@ -362,14 +362,29 @@ final class FeedStore {
     private(set) var dismissedBriefs: Set<String> = []
     func dismissBrief(_ topic: String) { dismissedBriefs.insert(topic) }
 
-    /// Per-topic notification opt-in (v2.5's bell-next-to-title). Local until the
-    /// alert matcher lands; then it maps onto topic_subscriptions.notify_level.
+    /// Per-topic notification opt-in (v2.5's bell-next-to-title). Bell on = server
+    /// notify_level 'high' (breaking only); custom topics always alert on any match.
     var notifyTopics: Set<String> {
         didSet { defaults.set(Array(notifyTopics), forKey: "notifyTopics") }
     }
     func toggleNotify(_ topic: String) {
         if notifyTopics.contains(topic) { notifyTopics.remove(topic) } else { notifyTopics.insert(topic) }
         Analytics.capture("topic_notify_toggle", ["topic": topic, "on": notifyTopics.contains(topic)])
+        // The bell IS the moment of intent: ask for permission here, never at launch.
+        if notifyTopics.contains(topic) { PushManager.shared.enablePush() }
+        Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
+    }
+
+    /// Notification tap → reader. Pools first (instant), server fallback for an
+    /// article that scrolled out of the cached window.
+    func openArticle(id: String) async {
+        let target = id.lowercased()
+        let pools = articles + topicExtra.values.flatMap { $0 } + sourceResults.values.flatMap { $0 }
+        if let hit = pools.first(where: { $0.id.uuidString.lowercased() == target }) {
+            reading = hit
+            return
+        }
+        if let fetched = try? await api.fetchArticle(id: target) { reading = fetched }
     }
 
     /// The bell inbox: current breaking stories (high tier = notification-grade), one per cluster.

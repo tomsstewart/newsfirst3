@@ -20,6 +20,15 @@ struct SupabaseAPI {
         ])
     }
 
+    /// One article by id — the notification-tap path.
+    func fetchArticle(id: String) async throws -> Article? {
+        try await get([
+            .init(name: "id", value: "eq.\(id)"),
+            .init(name: "select", value: Self.fields),
+            .init(name: "limit", value: "1"),
+        ]).first
+    }
+
     /// Every telling of one story — the Full Coverage page.
     func fetchCluster(_ clusterID: UUID) async throws -> [Article] {
         try await get([

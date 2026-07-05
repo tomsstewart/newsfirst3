@@ -7,13 +7,18 @@
  * this function issues ZERO article updates.
  *
  * Secrets: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected by the platform;
- * set GEMINI_API_KEY via `supabase secrets set` or Dashboard → Edge Functions → Secrets.
+ * set GEMINI_API_KEY + APNS_* via `supabase secrets set` or Dashboard → Edge Functions → Secrets.
  */
+import { sendPush } from "./apns.ts";
 
 export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
   GEMINI_API_KEY: string;
+  APNS_KEY_P8: string;
+  APNS_KEY_ID: string;
+  APNS_TEAM_ID: string;
+  APNS_TOPIC: string;
 }
 
 interface Source {
@@ -453,11 +458,79 @@ ${withNews.map((tp) => `## ${tp}\n${byTopic[tp].join("\n")}`).join("\n\n")}`;
   }
 }
 
+// ---------- alerts (the product: match → claim → push) ----------
+// claim_alerts() in Postgres does all matching/gating and INSERTS the alerts rows
+// atomically (the insert is the claim); this side only fans out to APNs and records
+// per-device outcomes. Delivery truth: delivered_at = APNs accepted (200) for ≥1 device.
+const TOPIC_LABELS: Record<string, string> = {
+  world: "World", business: "Business", economics: "Economics", tech: "Tech", ai: "AI",
+  science: "Science", sports: "Sports", crypto: "Crypto", gaming: "Gaming",
+  entertainment: "Entertainment", space: "Space", climate: "Climate", health: "Health", travel: "Travel",
+};
+
+interface ClaimedAlert {
+  alert_id: string; user_id: string; article_id: string; topic: string; kind: string;
+  title: string; excerpt: string | null; source_name: string; cluster_id: string | null;
+  devices: { token: string; environment: string }[] | null;
+}
+
+async function alertsTick(env: Env): Promise<unknown> {
+  if (!env.APNS_KEY_P8 || !env.APNS_KEY_ID || !env.APNS_TEAM_ID || !env.APNS_TOPIC) {
+    console.error("alerts: APNS_* secrets missing — tick skipped");
+    return "apns-not-configured";
+  }
+  const db = sb(env);
+  const claimed = await db.postRows("rpc/claim_alerts", {}, "return=representation") as ClaimedAlert[];
+  if (!claimed.length) return { claimed: 0 };
+
+  let sent = 0, invalidated = 0;
+  const failures: string[] = [];
+  for (const a of claimed) {
+    const label = TOPIC_LABELS[a.topic] ?? a.topic;
+    const payload = {
+      aps: {
+        alert: {
+          title: a.kind === "breaking" ? `Breaking · ${label}` : label,
+          subtitle: a.source_name,
+          body: a.title,
+        },
+        sound: "default",
+        "thread-id": a.topic,
+        "interruption-level": a.kind === "breaking" ? "time-sensitive" : "active",
+        "mutable-content": 1,
+      },
+      alert_id: a.alert_id, article_id: a.article_id, topic: a.topic,
+    };
+    let accepted: string | null = null;
+    for (const d of a.devices ?? []) {
+      const r = await sendPush(env, d, payload, a.cluster_id);
+      if (r.ok) { accepted = r.apnsId ?? "accepted"; sent++; }
+      else if (r.status === 410 || r.reason === "BadDeviceToken" || r.reason === "Unregistered" || r.reason === "DeviceTokenNotForTopic") {
+        // Dead token: mark, don't retry forever. Rows are pruned later, never silently deleted.
+        await db.patch(`devices?apns_token=eq.${encodeURIComponent(d.token)}`, { is_valid: false }).catch(() => {});
+        invalidated++;
+      } else {
+        failures.push(`${r.status}:${r.reason || "?"}`);
+        console.error(`alerts: apns ${r.status} ${r.reason} (alert ${a.alert_id})`);
+      }
+    }
+    if (accepted) {
+      await db.patch(`alerts?id=eq.${a.alert_id}`,
+        { apns_id: accepted, delivered_at: new Date().toISOString() }).catch(() => {});
+    }
+  }
+  return { claimed: claimed.length, sent, invalidated, failures: failures.slice(0, 5) };
+}
+
 Deno.serve(async (req: Request) => {
   const env: Env = {
     SUPABASE_URL: Deno.env.get("SUPABASE_URL")!,
     SUPABASE_SERVICE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     GEMINI_API_KEY: Deno.env.get("GEMINI_API_KEY") ?? "",
+    APNS_KEY_P8: Deno.env.get("APNS_KEY_P8") ?? "",
+    APNS_KEY_ID: Deno.env.get("APNS_KEY_ID") ?? "",
+    APNS_TEAM_ID: Deno.env.get("APNS_TEAM_ID") ?? "",
+    APNS_TOPIC: Deno.env.get("APNS_TOPIC") ?? "",
   };
   // Only the service role may trigger ingestion (verify_jwt alone would admit the public anon key).
   // The gateway has already verified the JWT signature; here we only need the role claim.
@@ -478,6 +551,7 @@ Deno.serve(async (req: Request) => {
     const n = Math.max(1, Math.min(100, Number(new URL(req.url).searchParams.get("n")) || 12));
     detail = await embedNewArticles(env, n);
   }
+  else if (task === "alerts") detail = await alertsTick(env);
   else await ingestTick(env);
   return new Response(JSON.stringify({ ok: true, task, detail }), { headers: { "Content-Type": "application/json" } });
 });

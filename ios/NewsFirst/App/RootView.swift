@@ -51,6 +51,11 @@ struct RootView: View {
             }
             PushManager.shared.flushPendingOpen()   // cold start from a notification tap
             await PushManager.shared.registerIfAuthorized()
+            // Headless smoke test for the alert-tap path (sim): PUSH_SELFTEST_ARTICLE=<uuid>.
+            if let id = ProcessInfo.processInfo.environment["PUSH_SELFTEST_ARTICLE"] {
+                try? await Task.sleep(for: .seconds(2))
+                PushManager.shared.handleTap(article: id, alert: nil, topic: "selftest")
+            }
         }
         .task {
             // Headless smoke test for the studio voice (CI/sim): KOKORO_SELFTEST=1.

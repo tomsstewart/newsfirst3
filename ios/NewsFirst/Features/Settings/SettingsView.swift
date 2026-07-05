@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// Settings — a real page in the app's design language, not a stock form.
 struct SettingsView: View {
@@ -169,8 +170,7 @@ struct SettingsView: View {
                     }
 
                     section("Notifications", icon: "bell.badge") {
-                        Text("Keyword alerts, per-topic levels (all / high only), quiet hours and the daily brief arrive with the next phase.")
-                            .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                        NotificationSection()
                     }
 
                     section("Account", icon: "person.crop.circle") {
@@ -243,6 +243,75 @@ struct SettingsView: View {
     private func addTopic() {
         store.addCustomTopic(newTopic)
         newTopic = ""
+    }
+}
+
+/// Live alert state: sign-in gate → permission gate → what's on. The bells
+/// themselves live on each topic page (v2.5 pattern); this is the control room.
+struct NotificationSection: View {
+    @Environment(FeedStore.self) private var store
+    @Environment(\.openAuth) private var openAuth
+    @Environment(\.dismiss) private var dismiss
+    @State private var auth = AuthClient.shared
+    @State private var status: UNAuthorizationStatus = .notDetermined
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !auth.isSignedIn {
+                Text("Alerts need an account, so they can follow your topics.")
+                    .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                Button {
+                    dismiss()
+                    openAuth()
+                } label: {
+                    Text("Sign in to enable alerts")
+                        .font(Theme.Text.rowTitle).foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(Theme.selectionGradient, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+            } else {
+                switch status {
+                case .denied:
+                    Text("Notifications are switched off for NewsFirst in iOS Settings.")
+                        .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                    #if os(iOS)
+                    Button("Open iOS Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .font(Theme.Text.rowTitle).foregroundStyle(Theme.accent).buttonStyle(.plain)
+                    #endif
+                case .notDetermined:
+                    Text("Breaking-story alerts for topics you bell, and every match on your custom topics.")
+                        .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                    Button {
+                        PushManager.shared.enablePush()
+                        Task {   // reflect the answer once the system dialog resolves
+                            try? await Task.sleep(for: .seconds(1))
+                            await refresh()
+                        }
+                    } label: {
+                        Text("Enable notifications")
+                            .font(Theme.Text.rowTitle).foregroundStyle(.white)
+                            .padding(.horizontal, 18).padding(.vertical, 9)
+                            .background(Theme.selectionGradient, in: Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                default:
+                    let bells = store.notifyTopics.count
+                    let customs = store.customTopics.count
+                    Text("On. \(bells == 0 ? "Bell a topic to get its breaking stories" : "Breaking stories for \(bells) belled topic\(bells == 1 ? "" : "s")")\(customs > 0 ? " · every match on \(customs) custom topic\(customs == 1 ? "" : "s")" : "").")
+                        .font(Theme.Text.excerpt).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task { await refresh() }
+    }
+
+    private func refresh() async {
+        status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 }
 
