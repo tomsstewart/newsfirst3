@@ -265,6 +265,7 @@ struct TopicBar: View {
                 .coordinateSpace(name: "chipbar")
                 .onPreferenceChange(ChipFramesKey.self) { chipFrames = $0 }
                 .background(alignment: .topLeading) { movingIndicator }
+                .onDrop(of: [.text], isTargeted: nil) { _ in draggedTopic = nil; return true }
                 .scrollTargetLayout()
                 #if os(macOS)
                 .gesture(barDragScroll(proxy))   // mouse drag scrolls the bar (touch does this natively)
@@ -343,6 +344,11 @@ struct TopicBar: View {
             })
         }
         .buttonStyle(PressableStyle())
+        .rotationEffect(.degrees(draggedTopic != nil && topic != FeedStore.topStories ? 2 : 0))
+        .animation(
+            draggedTopic != nil ? .easeInOut(duration: 0.13).repeatForever(autoreverses: true) : .snappy(duration: 0.2),
+            value: draggedTopic != nil
+        )
         .onDrag {
             draggedTopic = topic
             return NSItemProvider(object: topic as NSString)

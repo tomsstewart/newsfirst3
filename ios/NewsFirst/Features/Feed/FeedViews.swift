@@ -305,7 +305,7 @@ struct ListRow: View {
         // edge-to-edge portrait — text-driven heights made each thumbnail a different
         // rectangle. Text clamps guarantee fit (2-line title, 2-line excerpt, meta).
         ZStack(alignment: .topLeading) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(article.title)
                     .font(Theme.Text.rowTitle)
                     .foregroundStyle(.primary)
@@ -323,7 +323,7 @@ struct ListRow: View {
                     SourceLine(article: article)
                 }
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 5)
             .padding(.trailing, 10)
             .padding(.leading, 112)   // 100pt flush image + 12pt gutter
             .frame(maxWidth: .infinity, alignment: .leading)

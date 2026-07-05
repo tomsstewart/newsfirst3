@@ -166,7 +166,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         for (i, part) in parts.enumerated() {
             let utterance = AVSpeechUtterance(string: part)
             utterance.voice = Self.voice
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.92   // newsreader, not auctioneer
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.01   // +10% over the old newsreader pace
             utterance.pitchMultiplier = 1.02
             utterance.postUtteranceDelay = i == parts.count - 1 ? 0 : 0.35   // the beat between stories
             synth.speak(utterance)   // AVSpeechSynthesizer queues natively
