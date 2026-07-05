@@ -145,6 +145,18 @@ struct SettingsView: View {
                         StudioVoiceControls()
                     }
 
+                    section("AI briefing", icon: "sparkles") {
+                        Toggle(isOn: $store.showBriefings) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Show briefings").font(Theme.Text.rowTitle)
+                                Text("The daily and per-topic overview cards with Listen.")
+                                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(Theme.accent)
+                    }
+
                     section("Reading", icon: "doc.plaintext") {
                         Toggle(isOn: $store.readerMode) {
                             VStack(alignment: .leading, spacing: 2) {

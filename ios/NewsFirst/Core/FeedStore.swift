@@ -79,8 +79,11 @@ final class FeedStore {
     }
 
     // Persisted preferences (UserDefaults now; syncs to topic_subscriptions post-auth)
-    var customTopics: [String] { didSet { defaults.set(customTopics, forKey: "customTopics"); validateSelection() } }
-    var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics"); validateSelection() } }
+    var customTopics: [String] { didSet { defaults.set(customTopics, forKey: "customTopics"); syncOrder(); validateSelection() } }
+    var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics"); syncOrder(); validateSelection() } }
+    /// One ordered bar for presets AND customs — drag-reorder is free-form across both.
+    var topicOrder: [String] { didSet { defaults.set(topicOrder, forKey: "topicOrder") } }
+    var showBriefings: Bool { didSet { defaults.set(showBriefings, forKey: "showBriefings") } }
     var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources"); rankedCache.removeAll() } }
     var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll() } }
@@ -102,7 +105,10 @@ final class FeedStore {
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? true
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
+        showBriefings = defaults.object(forKey: "showBriefings") as? Bool ?? true
+        topicOrder = defaults.stringArray(forKey: "topicOrder") ?? []
         mode = defaultMode
+        syncOrder()
         // One-time: Top Stories supersedes World as the home pane (world stays available
         // in Settings for anyone who re-adds it).
         if !defaults.bool(forKey: "migratedTopStories") {
@@ -142,8 +148,18 @@ final class FeedStore {
         }
     }
 
-    var topicBar: [String] { [Self.topStories] + enabledTopics + customTopics }
+    var topicBar: [String] {
+        [Self.topStories] + topicOrder.filter { enabledTopics.contains($0) || customTopics.contains($0) }
+    }
     var sourceBar: [String] { sources.map(\.name) }
+
+    /// topicOrder tracks membership changes: new topics append, gone ones prune.
+    private func syncOrder() {
+        let live = enabledTopics + customTopics
+        var order = topicOrder.filter { live.contains($0) }
+        for t in live where !order.contains(t) { order.append(t) }
+        if order != topicOrder { topicOrder = order }
+    }
 
     /// Chip / card display name.
     static func displayName(_ topic: String) -> String {
@@ -405,17 +421,14 @@ final class FeedStore {
         }
     }
 
-    /// Chip drag-reorder across the real bar: presets reorder among presets, customs
-    /// among customs; Top Stories is pinned. (The old delegate only knew enabledTopics,
-    /// so custom chips never moved.)
+    /// Chip drag-reorder over ONE unified order — customs and presets mix freely;
+    /// Top Stories is pinned.
     func moveChip(_ dragged: String, before item: String) {
-        guard dragged != Self.topStories, item != Self.topStories, dragged != item else { return }
+        guard dragged != Self.topStories, item != Self.topStories, dragged != item,
+              let from = topicOrder.firstIndex(of: dragged),
+              let to = topicOrder.firstIndex(of: item) else { return }
         withAnimation(Theme.Motion.snappy) {
-            if let from = enabledTopics.firstIndex(of: dragged), let to = enabledTopics.firstIndex(of: item) {
-                enabledTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-            } else if let from = customTopics.firstIndex(of: dragged), let to = customTopics.firstIndex(of: item) {
-                customTopics.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-            }
+            topicOrder.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
         }
     }
 
@@ -437,8 +450,9 @@ final class FeedStore {
         var parts: [String] = []
         if let brief = briefs[topic] { parts.append(brief) }
         let top = visibleItems(topic: topic, source: "").prefix(3)
+        let intros = ["The top story, from", "Next, from", "And finally, from"]
         for (i, a) in top.enumerated() {
-            var line = "From \(a.sourceName): \(Self.sentence(a.title))"
+            var line = "\(intros[min(i, intros.count - 1)]) \(a.sourceName): \(Self.sentence(a.title))"
             if i == 0, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
             parts.append(line)
         }
@@ -457,17 +471,22 @@ final class FeedStore {
         let hour = Calendar.current.component(.hour, from: .now)
         let greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
-        // The structure is announced out loud: YOUR topics lead, by design.
+        // The structure is announced out loud: YOUR topics lead, by design — and every
+        // new story is flagged verbally ("Next…", "In other news…") so transitions
+        // never blur together in the ear.
         var customParts: [String] = []
+        var customIndex = 0
         for t in customTopics.prefix(3) {
             let items = customResults[t] ?? []
             guard let lead = items.first else { continue }
-            var line = "On \(t.capitalized) — from \(lead.sourceName): \(Self.sentence(lead.title))"
+            let intro = customIndex == 0 ? "On \(t.capitalized)" : "Next, on \(t.capitalized)"
+            var line = "\(intro) — from \(lead.sourceName): \(Self.sentence(lead.title))"
             if let s = Self.firstSentence(lead.excerpt) { line += " \(s)" }
             customParts.append(line)
             if let second = items.dropFirst().first(where: { $0.sourceName != lead.sourceName || $0.title != lead.title }) {
-                customParts.append("Also: \(Self.sentence(second.title))")
+                customParts.append("Also on \(t.capitalized): \(Self.sentence(second.title))")
             }
+            customIndex += 1
         }
         if !customParts.isEmpty {
             parts.append("First, the topics you follow.")
@@ -479,8 +498,9 @@ final class FeedStore {
         let top = visibleItems(topic: Self.topStories, source: "").prefix(3)
         if !top.isEmpty {
             parts.append(customParts.isEmpty ? "Today's top stories." : "Now, today's top stories.")
+            let intros = ["The lead story, from", "In other news, from", "And finally, from"]
             for (i, a) in top.enumerated() {
-                var line = "From \(a.sourceName): \(Self.sentence(a.title))"
+                var line = "\(intros[min(i, intros.count - 1)]) \(a.sourceName): \(Self.sentence(a.title))"
                 if i < 2, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
                 parts.append(line)
             }

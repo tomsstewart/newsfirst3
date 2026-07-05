@@ -33,7 +33,7 @@ struct BriefCard: View {
     private var isTop: Bool { topic == FeedStore.topStories }
 
     var body: some View {
-        if store.browse == .topics, !store.dismissedBriefs.contains(topic) {
+        if store.showBriefings, store.browse == .topics, !store.dismissedBriefs.contains(topic) {
             let parts = store.topicBriefingParts(topic)
             let text = parts.joined(separator: " ")
             if !text.isEmpty {
@@ -133,9 +133,9 @@ struct ListFeedView: View {
             LazyVStack(spacing: 13) {
                 TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
-                // A lone band header labels everything and informs nothing (Top Stories
-                // page one is legitimately all-High) — headers only when tiers mix.
-                let showHeaders = bands.count > 1
+                // Headers when tiers mix — EXCEPT custom topics, which always show their
+                // band so the tier of your keyword's news is visible at a glance.
+                let showHeaders = bands.count > 1 || store.customTopics.contains(topic)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     if showHeaders {
                         PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
@@ -149,7 +149,7 @@ struct ListFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
@@ -363,7 +363,7 @@ struct ImmersiveFeedView: View {
             LazyVStack(spacing: 13) {
                 TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
-                let showHeaders = bands.count > 1
+                let showHeaders = bands.count > 1 || store.customTopics.contains(topic)
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     if showHeaders {
                         PriorityBand(tier: band.tier)
@@ -379,7 +379,7 @@ struct ImmersiveFeedView: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
             .padding(.top, 6)
             LoadMoreButton()
             Spacer().frame(height: 24)
