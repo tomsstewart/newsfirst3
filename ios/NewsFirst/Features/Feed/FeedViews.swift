@@ -37,7 +37,7 @@ struct BriefCard: View {
             let parts = store.topicBriefingParts(topic)
             let text = parts.joined(separator: " ")
             if !text.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles")
                             .font(.caption.bold())
@@ -56,7 +56,7 @@ struct BriefCard: View {
                                 Text(speech.isSpeaking ? "Stop" : "Listen")
                                     .font(Theme.Text.badge)
                             }
-                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .padding(.horizontal, 11).padding(.vertical, 4)
                             .glassChip(prominent: speech.isSpeaking)
                             .foregroundStyle(speech.isSpeaking ? .white : Theme.accent)
                         }
@@ -75,11 +75,12 @@ struct BriefCard: View {
                         .buttonStyle(PressableStyle())
                     }
                     // Collapsed, the card is EXACTLY one list-tile tall (118pt) — it's a
-                    // peer of the tiles, not a billboard. Tap to unfold the full script.
+                    // peer of the tiles, not a billboard. Three script lines fit via the
+                    // tighter header/padding. Tap to unfold the full script.
                     Text(text)
                         .font(Theme.Text.excerpt)
                         .foregroundStyle(.primary.opacity(0.92))
-                        .lineLimit(expandedBrief ? nil : 2)
+                        .lineLimit(expandedBrief ? nil : 3)
                         .truncationMode(.tail)
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -89,6 +90,7 @@ struct BriefCard: View {
                     HStack(spacing: 4) {
                         Text(expandedBrief ? "Show less" : "Read it all")
                         Image(systemName: expandedBrief ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
                     }
                     .font(Theme.Text.badge)
                     .foregroundStyle(Theme.accent.opacity(0.8))
@@ -98,7 +100,7 @@ struct BriefCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
+                .padding(.horizontal, 10).padding(.vertical, 8)
                 .frame(height: expandedBrief ? nil : 118)
                 .background(Theme.accent.opacity(0.10))
                 .background(Theme.panel)
