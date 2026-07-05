@@ -294,7 +294,7 @@ struct ImmersiveFeedView: View {
                     if !(band.tier == .low && lowHidden) {
                         ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
                             Button { store.reading = article } label: {
-                                ImmersiveCard(article: article, hero: bandIndex == 0 && i == 0)
+                                ImmersiveCard(article: article)
                             }
                             .buttonStyle(PressableStyle())
                             .kineticEntrance(bandIndex * 3 + i + 1)
@@ -312,11 +312,12 @@ struct ImmersiveFeedView: View {
     }
 }
 
+/// Every card gets the full hero treatment — mixed 480/330 sizing read as inconsistent,
+/// and only the first card having a Read button made the rest feel inert.
 struct ImmersiveCard: View {
     let article: Article
-    var hero = false
     var body: some View {
-        OverlayCard(article: article, height: hero ? 480 : 330, showRead: hero, showTier: false)
+        OverlayCard(article: article, height: 480, showTier: false)
     }
 }
 
