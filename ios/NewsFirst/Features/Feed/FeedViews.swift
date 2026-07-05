@@ -28,7 +28,7 @@ struct BriefCard: View {
     @State private var speech = Speech.shared
 
     var body: some View {
-        if store.browse == .topics, store.selectedTopic == store.sessionBriefTopic {
+        if store.browse == .topics, store.selectedTopic == store.sessionBriefTopic, !store.briefDismissed {
             let text = store.personalBriefing
             if !text.isEmpty {
                 VStack(alignment: .leading, spacing: 7) {
@@ -55,11 +55,26 @@ struct BriefCard: View {
                             .foregroundStyle(speech.isSpeaking ? .white : Theme.accent)
                         }
                         .buttonStyle(PressableStyle())
+                        Button {
+                            if speech.isSpeaking { speech.toggle("") }   // dismissing also stops playback
+                            withAnimation(Theme.Motion.card) { store.briefDismissed = true }
+                            Analytics.capture("briefing_dismiss")
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                                .padding(7)
+                                .background(.primary.opacity(0.06), in: Circle())
+                        }
+                        .buttonStyle(PressableStyle())
                     }
+                    // Full text is SPOKEN; on screen it clamps — the card must never
+                    // dominate the feed. lineLimit renders the trailing ellipsis.
                     Text(text)
                         .font(Theme.Text.excerpt)
                         .foregroundStyle(.primary.opacity(0.92))
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(4)
+                        .truncationMode(.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)

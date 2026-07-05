@@ -265,16 +265,30 @@ final class FeedStore {
         await refresh()
     }
 
-    /// Session briefing: custom topics lead (that's what the user hand-picked), then
-    /// the day's high-priority stories from their chosen topics. Hard-capped so the
-    /// spoken version stays under ~30 seconds — succinct, never overwhelming.
+    /// Whether this session's briefing was dismissed (session-scoped, not persisted —
+    /// a fresh launch brings the card back).
+    var briefDismissed = false
+
+    /// Session briefing in the assistant "tell me the news" register: greeting, the
+    /// user's CUSTOM topics with real depth (two stories each, summary sentence on the
+    /// lead), then attributed top stories from their chosen topics. Spoken in full;
+    /// the card truncates visually.
     var personalBriefing: String {
-        var lines: [String] = []
+        var parts: [String] = []
+        let hour = Calendar.current.component(.hour, from: .now)
+        let greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+
         for t in customTopics.prefix(3) {
-            if let top = (customResults[t] ?? []).first {
-                lines.append("\(t.capitalized): \(top.title).")
+            let items = customResults[t] ?? []
+            guard let lead = items.first else { continue }
+            var line = "On \(t.capitalized) — from \(lead.sourceName): \(Self.sentence(lead.title))"
+            if let s = Self.firstSentence(lead.excerpt) { line += " \(s)" }
+            parts.append(line)
+            if let second = items.dropFirst().first(where: { $0.sourceName != lead.sourceName || $0.title != lead.title }) {
+                parts.append("Also: \(Self.sentence(second.title))")
             }
         }
+
         var seen: Set<String> = []
         let highs = articles
             .filter { a in a.tier == .high && a.topics.contains(where: { enabledTopics.contains($0) }) }
@@ -284,13 +298,33 @@ final class FeedStore {
             }
             .prefix(3)
         if !highs.isEmpty {
-            lines.append("Top stories. " + highs.map { $0.title.hasSuffix(".") ? $0.title : $0.title + "." }.joined(separator: " "))
+            parts.append(parts.isEmpty ? "The top stories from your topics." : "Now, the top stories from your topics.")
+            for (i, a) in highs.enumerated() {
+                var line = "From \(a.sourceName): \(Self.sentence(a.title))"
+                if i < 2, let s = Self.firstSentence(a.excerpt) { line += " \(s)" }
+                parts.append(line)
+            }
         }
+
         // Thin day and no customs: the server's per-topic overview still beats silence.
-        if lines.isEmpty, let brief = briefs[sessionBriefTopic ?? selectedTopic] {
-            lines.append(brief)
+        if parts.isEmpty, let brief = briefs[sessionBriefTopic ?? selectedTopic] {
+            parts.append(brief)
         }
-        return lines.joined(separator: " ")
+        guard !parts.isEmpty else { return "" }
+        return "\(greeting). Here's your briefing. " + parts.joined(separator: " ") + " That's your briefing."
+    }
+
+    private static func sentence(_ s: String) -> String {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        return t.hasSuffix(".") || t.hasSuffix("!") || t.hasSuffix("?") ? t : t + "."
+    }
+
+    /// First sentence of an excerpt, cleaned for speech — skips fragments and runaways.
+    private static func firstSentence(_ excerpt: String?) -> String? {
+        guard let e = excerpt?.trimmingCharacters(in: .whitespacesAndNewlines), !e.isEmpty else { return nil }
+        let first = e.components(separatedBy: ". ").first ?? e
+        guard first.count >= 30 else { return nil }
+        return sentence(String(first.prefix(180)))
     }
 
     func refresh() async {

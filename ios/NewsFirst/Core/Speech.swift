@@ -14,6 +14,29 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         synth.delegate = self
     }
 
+    /// Best installed voice: the API silently defaults to the robotic COMPACT voice;
+    /// the neural premium/enhanced voices ship on-device but must be selected
+    /// explicitly. (Real devices can add more: Settings → Accessibility → Spoken
+    /// Content → Voices.) Novelty voices (Bahh, Bells…) are rank-0 by quality.
+    private static let voice: AVSpeechSynthesisVoice? = {
+        let preferred = Locale.preferredLanguages.first ?? "en-GB"
+        let base = String(preferred.prefix(2))
+        func rank(_ v: AVSpeechSynthesisVoice) -> Int {
+            var r = 0
+            switch v.quality {
+            case .premium: r += 100
+            case .enhanced: r += 50
+            default: break
+            }
+            if v.language == preferred { r += 20 }                        // exact locale (en-GB for Tom)
+            if v.identifier.contains("com.apple.voice") { r += 5 }       // modern voice bundles
+            return r
+        }
+        return AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix(base) }
+            .max { rank($0) < rank($1) }
+    }()
+
     func toggle(_ text: String) {
         if isSpeaking {
             synth.stopSpeaking(at: .immediate)
@@ -27,7 +50,9 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
         let utterance = AVSpeechUtterance(string: text)
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.voice = Self.voice
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95   // a touch calmer than default
+        utterance.postUtteranceDelay = 0.1
         synth.speak(utterance)
         isSpeaking = true
         Analytics.capture("briefing_play")
