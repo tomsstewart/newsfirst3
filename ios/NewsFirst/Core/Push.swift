@@ -57,8 +57,15 @@ final class PushManager: NSObject {
     /// tokens rotate; a stale row means dead alerts with no error anywhere).
     func registerIfAuthorized() async {
         #if os(iOS)
-        guard AuthClient.shared.isSignedIn else { return }
         let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        // Breadcrumb every launch: permission state × auth state — the registration
+        // funnel was failing invisibly on-device with zero server-side traces.
+        Analytics.capture("push_status", [
+            "authorization": String(status.rawValue),
+            "signed_in": AuthClient.shared.isSignedIn,
+            "registered": UIApplication.shared.isRegisteredForRemoteNotifications,
+        ])
+        guard AuthClient.shared.isSignedIn else { return }
         if status == .authorized || status == .provisional || status == .ephemeral {
             UIApplication.shared.registerForRemoteNotifications()
         }
@@ -67,6 +74,7 @@ final class PushManager: NSObject {
 
     func tokenReceived(_ deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        Analytics.capture("push_token_received", ["environment": environment])
         Task { await upsertDevice(token) }
     }
 
@@ -81,6 +89,7 @@ final class PushManager: NSObject {
     private func upsertDevice(_ token: String) async {
         guard let jwt = await AuthClient.shared.validToken(), let uid = AuthClient.shared.userID else {
             parkedToken = token
+            Analytics.capture("device_upsert_parked", ["reason": "no-valid-session"])
             return
         }
         parkedToken = nil
@@ -95,7 +104,12 @@ final class PushManager: NSObject {
             "user_id": uid, "apns_token": token, "environment": environment,
             "is_valid": true, "last_seen_at": ISO8601DateFormatter().string(from: .now),
         ]])
-        _ = try? await URLSession.shared.data(for: req)
+        do {
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            Analytics.capture("device_upsert", ["status": (resp as? HTTPURLResponse)?.statusCode ?? -1])
+        } catch {
+            Analytics.capture("device_upsert", ["status": -1, "error": error.localizedDescription])
+        }
         defaults.set(token, forKey: "apnsToken")
 
         // Keep the user's timezone fresh: the daily brief fires at 10:00 in THIS tz.
@@ -191,8 +205,9 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // Sim without APNs support / no network: log-only, the next launch retries.
-        print("push: registration failed — \(error.localizedDescription)")
+        let message = error.localizedDescription
+        print("push: registration failed — \(message)")
+        Task { @MainActor in Analytics.capture("push_register_failed", ["error": message]) }
     }
 
     /// Alerts stay visible in the foreground — a breaking story is exactly when
