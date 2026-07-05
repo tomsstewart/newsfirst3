@@ -14,6 +14,9 @@ struct OnboardingView: View {
     // No "world" preselect: Top Stories IS the front page — defaulting World on made
     // the first two chips read as the same thing twice. It stays available to pick.
     @State private var picked: Set<String> = ["tech", "business", "ai"]
+    @State private var customsPicked: [String] = []
+    @State private var customDraft = ""
+    @FocusState private var draftFocused: Bool
     @State private var pulse = false
     @State private var showAuthSheet = false
     @State private var auth = AuthClient.shared
@@ -75,7 +78,7 @@ struct OnboardingView: View {
             Text("What do you care about?")
                 .font(Theme.Text.hero)
                 .padding(.top, 60)
-            Text("Pick at least three. Custom keyword topics come next — they're the good part.")
+            Text("Pick at least three — and add your own keywords below. They're the good part.")
                 .font(Theme.Text.excerpt)
                 .foregroundStyle(.secondary)
             ScrollView {
@@ -85,11 +88,41 @@ struct OnboardingView: View {
                     }
                 }
                 .padding(.top, 8)
+
+                // The good part, delivered here: any keyword becomes a column with alerts.
+                Text("YOUR OWN KEYWORDS")
+                    .font(Theme.Text.badge).foregroundStyle(.secondary).kerning(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 18)
+                if !customsPicked.isEmpty {
+                    FlowChips(items: customsPicked, isOn: { _ in true }) { topic, _ in
+                        withAnimation(Theme.Motion.snappy) { customsPicked.removeAll { $0 == topic } }
+                    }
+                }
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill").foregroundStyle(Theme.accent)
+                    TextField("Anything — a team, a stock, a person…", text: $customDraft)
+                        .font(Theme.Text.meta)
+                        .textFieldStyle(.plain)
+                        .focused($draftFocused)
+                        .submitLabel(.done)
+                        .onSubmit { addCustomDraft() }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 11)
+                .background(Theme.panel, in: Capsule())
+                .overlay(Capsule().strokeBorder(draftFocused ? Theme.accent.opacity(0.6) : Theme.panelBorder, lineWidth: 1))
+                .padding(.top, customsPicked.isEmpty ? 2 : 6)
+                .padding(.bottom, 12)
             }
             Button {
+                addCustomDraft()   // an un-submitted keyword still counts
                 store.enabledTopics = FeedStore.presetTopics.filter { picked.contains($0) }
-                store.selectedTopic = store.enabledTopics.first ?? "world"
-                Analytics.capture("topics_selected", ["topics": Array(picked), "count": picked.count, "is_initial_setup": true])
+                customsPicked.forEach { store.addCustomTopic($0) }
+                store.selectedTopic = FeedStore.topStories   // the front page, not the last-added column
+                Analytics.capture("topics_selected", ["topics": Array(picked) + customsPicked,
+                                                      "count": picked.count + customsPicked.count,
+                                                      "customs": customsPicked.count,
+                                                      "is_initial_setup": true])
                 if Self.requiresAuth, !auth.isSignedIn {
                     withAnimation(Theme.Motion.feed) { page = 2 }
                 } else {
@@ -108,6 +141,13 @@ struct OnboardingView: View {
             .padding(.bottom, 40)
         }
         .padding(.horizontal, 24)
+    }
+
+    private func addCustomDraft() {
+        let t = customDraft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        customDraft = ""
+        guard t.count >= 2, !customsPicked.contains(t), !FeedStore.presetTopics.contains(t) else { return }
+        withAnimation(Theme.Motion.snappy) { customsPicked.append(t) }
     }
 
     /// Final gate: alerts, briefings and synced topics all hang off the account.
