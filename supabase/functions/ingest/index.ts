@@ -166,42 +166,45 @@ async function sha256(s: string): Promise<string> {
 // ---------- Gemini enrichment (batched; free tier) ----------
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[]; importance?: number }[]> {
+async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[]): Promise<{ topics: string[]; entities: string[]; regions: string[]; importance?: number }[]> {
   if (items.length === 0) return [];
   const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
 {"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics. "ai" means the story is substantially ABOUT AI technology, models, labs or the AI industry — a headline merely mentioning AI (lifestyle, opinion, stocks riding the trend) is NOT "ai"],
  "entities": [lowercased key people/companies/products, max 5],
  "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty],
- "importance": front-page importance for a general audience, exactly one of:
-   3 = drop-everything breaking news (major attack or disaster, war starts or sharply escalates, death or assassination of a major world figure, market crash, head of government falls);
-   2 = significant hard-news development (world affairs, politics, business, economy, tech, science, health) a serious front page would lead with;
-   1 = routine or soft: sports results/fixtures/previews/transfer chat, celebrity and entertainment, weather chatter, reviews, opinion, interviews, incremental follow-ups, minor local items;
-   0 = fluff, promos, listicles, quizzes, shopping deals.
- Sports and entertainment are NEVER 3, and are 2 only when the story transcends the game/show itself (stadium disaster, superstar dies, league-wide scandal). Be strict: when torn between two ratings, pick the lower.}
+ "importance": integer 0-3}
+importance = front-page importance for a general audience: 3 = drop-everything breaking news (major attack or disaster, war starts or sharply escalates, death or assassination of a major world figure, market crash, head of government falls); 2 = significant hard-news development (world affairs, politics, business, economy, tech, science, health) a serious front page would lead with; 1 = routine or soft (sports results/fixtures/previews/transfer chat, celebrity and entertainment, weather chatter, reviews, opinion, interviews, incremental follow-ups, minor local items); 0 = fluff, promos, listicles, quizzes, shopping deals. Sports and entertainment are NEVER 3, and are 2 only when the story transcends the game/show itself (stadium disaster, superstar dies, league-wide scandal). Be strict: when torn between two ratings, pick the lower.
 Headlines:
 ${items.map((it, i) => `${i + 1}. ${it.title} — ${it.excerpt?.slice(0, 140) ?? ""}`).join("\n")}
 Return ONLY the JSON array.`;
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${env.GEMINI_API_KEY}`,
-      { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }) },
-    );
-    // 429 = RPM window; 5xx = "high demand" load-shedding (the 2026-07-05 briefs killer).
-    if ((r.status === 429 || r.status >= 500) && attempt < 2) {
-      await sleep(8000 * (attempt + 1));
-      return enrichChunk(env, items, attempt + 1);
+  const call = (model: string) => fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+    { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } }) },
+  );
+  // Model-fallback ladder (mirrors generateBriefs). Ride out transient 429/5xx per
+  // model, then fall back to the bigger flash model (free-tier quotas are per-model).
+  let r: Response | null = null;
+  outer: for (const model of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) {
+    r = await call(model);
+    for (const wait of [8000, 16000]) {
+      if (r.ok) break outer;
+      if (r.status !== 429 && r.status < 500) break outer;   // hard error: try next model, no point sleeping
+      await sleep(wait);
+      r = await call(model);
     }
-    if (!r.ok) throw new Error(`gemini ${r.status}`);
-    const j: any = await r.json();
-    const arr = JSON.parse(geminiText(j));
-    if (Array.isArray(arr) && arr.length === items.length) return arr;
-    throw new Error("shape mismatch");
-  } catch (e) {
-    // Enrichment is an enhancement, not a dependency — fall back to source category only.
-    console.error("enrich:", e instanceof Error ? e.message : e);
-    return items.map(() => ({ topics: [], entities: [], regions: [] }));
+    if (r.ok) break;
   }
+  // Throw (not swallow) so enrichBackfill can surface the REAL reason in its return
+  // detail — a silent [] fallback is exactly what hid enrich being dead since 2026-07-04.
+  if (!r || !r.ok) throw new Error(`gemini ${r?.status} ${r ? (await r.text()).slice(0, 200) : ""}`);
+  const j: any = await r.json();
+  const arr = JSON.parse(geminiText(j));
+  if (!Array.isArray(arr)) throw new Error(`gemini non-array: ${JSON.stringify(arr).slice(0, 120)}`);
+  // TOLERANT by index: the old `arr.length === items.length` check nuked the whole
+  // 200-item batch if the model dropped even one — the enrichment killer. Now we keep
+  // whatever aligned by position; any short-fall items simply get picked up next run.
+  return arr;
 }
 
 /// Long JSON responses can arrive split across parts; missing candidates = explicit error.
@@ -408,30 +411,46 @@ async function healthWatchdog(env: Env): Promise<void> {
 async function enrichBackfill(env: Env): Promise<number> {
   const db = sb(env);
   const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
-  const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
-    `articles?published_at=gt.${since}&select=id,title,excerpt,topics,regions,importance&order=published_at.desc&limit=500`,
+  // Server-side unrated filter + newest-first: successive runs walk the ENTIRE unrated
+  // backlog, not just a fetched-then-filtered newest-500 window. That old cap left
+  // breaking items >~5h old — the actual High candidates — permanently unrated, so the
+  // importance gate never governed them. Paired with the hourly enrich cron (migration
+  // 0030): 200/run × 24 = 4800/day > ~2500 new/day, so every article is rated within
+  // ~1-2h of publish, well inside the 6h High window. Every article needs a rating —
+  // the High tier gate (0029) is importance-driven.
+  const thin = await db.get<{ id: string; title: string; excerpt: string | null; topics: string[]; regions: string[] }[]>(
+    `articles?importance=is.null&published_at=gt.${since}&select=id,title,excerpt,topics,regions&order=published_at.desc&limit=200`,
   );
-  // 200/call keeps up with ~2-2.5k articles/day across 12 daily runs (100 ran a deficit
-  // that aged out of the 48h window permanently unenriched). Still exactly one call.
-  // importance-null articles are included even when topic-hinted: every article needs
-  // a rating — the High tier gate (0029) is importance-driven.
-  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1 || r.importance == null).slice(0, 200);
-  if (!thin.length) return 0;
-  const meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation (quota: 20/day)
-  let patched = 0;
+  if (!thin.length) return { patched: 0, rated: 0, candidates: 0 };
+  let meta: { topics: string[]; entities: string[]; regions: string[]; importance?: number }[];
+  try {
+    meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation
+  } catch (e) {
+    // Enrichment is an enhancement, not a dependency — but report WHY so a dead Gemini
+    // path is visible in the invoke response instead of silently returning 0 patches.
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("enrich:", error);
+    return { patched: 0, rated: 0, candidates: thin.length, error };
+  }
+  let patched = 0, rated = 0;
   for (let i = 0; i < thin.length; i++) {
     const m = meta[i];
-    const imp = typeof m.importance === "number" ? Math.max(0, Math.min(3, Math.round(m.importance))) : null;
-    if (!m.topics.length && !m.entities.length && imp == null) continue;
+    if (!m) continue;   // tolerant: model returned fewer objects than headlines
+    // Tolerant: models sometimes return "3" (string) — Number() both; reject NaN.
+    const impRaw = Number(m.importance);
+    const imp = m.importance != null && Number.isFinite(impRaw) ? Math.max(0, Math.min(3, Math.round(impRaw))) : null;
+    if (imp != null) rated++;
+    if (!(m.topics?.length) && !(m.entities?.length) && imp == null) continue;
     await db.patch(`articles?id=eq.${thin[i].id}`, {
-      topics: [...new Set([...((thin[i] as any).topics ?? []), ...m.topics])],
+      topics: [...new Set([...((thin[i] as any).topics ?? []), ...(m.topics ?? [])])],
       // Union: Gemini often returns [] regions; wholesale overwrite erased the ingest tag.
-      entities: m.entities, regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
+      entities: m.entities ?? [], regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
       ...(imp != null ? { importance: imp } : {}),
-    }).catch(() => {});
+    }).catch((e) => console.error(`enrich patch ${thin[i].id}:`, e instanceof Error ? e.message : e));
     patched++;
   }
-  return patched;
+  console.log(`enrich_backfill: candidates=${thin.length} returned=${meta.length} patched=${patched} rated=${rated}`);
+  return { patched, rated, candidates: thin.length, returned: meta.length };
 }
 
 
