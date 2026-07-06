@@ -199,12 +199,15 @@ final class FeedStore {
         if let regions = a.regions, !regions.isEmpty {
             let r = Set(regions)
             if !r.isDisjoint(with: home) {
-                adj += 12                                              // my market's story
+                // Tom: region must be PRONOUNCED — +12 was imperceptible. Home-market
+                // stories (now including the local papers, whose rows carry their
+                // country from ingest) jump roughly a tier.
+                adj += 26
             } else if r.isSubset(of: Self.marketCodes), a.tier != .high {
                 // Foreign-market domestic news (mostly politics) barely travels…
-                // with two exceptions: US stories interest everyone somewhat (-4,
-                // not -10), and BREAKING transcends borders entirely (no demotion).
-                adj -= r.isSubset(of: ["US", "CA"]) ? 4 : 10
+                // with two exceptions: US stories interest everyone somewhat (-8,
+                // not -18), and BREAKING transcends borders entirely (no demotion).
+                adj -= r.isSubset(of: ["US", "CA"]) ? 8 : 18
             }
         }
         // Corroboration: a story multiple independent outlets chose to cover matters
