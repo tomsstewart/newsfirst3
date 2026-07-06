@@ -29,7 +29,9 @@ enum Analytics {
     /// that pre-login history into the person the moment they sign in.
     static var distinctID: String { userID ?? installID }
 
-    private static var userID: String? = UserDefaults.standard.string(forKey: "authUserID")
+    // Written only from AuthClient (MainActor) at sign-in/out; read as a whole String
+    // reference elsewhere — a stale read costs one event on the install id, harmless.
+    nonisolated(unsafe) private static var userID: String? = UserDefaults.standard.string(forKey: "authUserID")
 
     static var installID: String {
         if let id = UserDefaults.standard.string(forKey: "installUUID") { return id }
