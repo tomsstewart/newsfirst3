@@ -10,6 +10,7 @@ struct ReaderSheet: View {
     let article: Article
     @Environment(FeedStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var openedAt = Date.now
     // Google News rows may still carry the news.google.com redirect (only the first
     // screenfuls get pre-enriched) — resolve to the publisher before opening Safari,
     // or the user lands on Google's consent wall instead of the story.
@@ -40,7 +41,16 @@ struct ReaderSheet: View {
             }
         }
         .task { resolved = await GoogleNewsRSS.realURL(for: article.url) }
-        .onDisappear { Speech.shared.stop() }
+        .onDisappear {
+            Speech.shared.stop()
+            // Dwell time closes the engagement funnel: open → actually read.
+            Analytics.capture("reader_close", [
+                "seconds": Int(Date.now.timeIntervalSince(openedAt)),
+                "source": article.sourceName,
+                "tier": article.tier.rawValue,
+                "is_external": article.isExternal,
+            ])
+        }
         #else
         VStack(spacing: 0) {
             HStack {

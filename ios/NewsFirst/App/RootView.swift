@@ -303,6 +303,9 @@ struct RootView: View {
     /// Land a settling commit: apply the selection and snap the carousel to rest.
     private func applyCommit(_ target: String) {
         KineticGate.suppressed = true
+        Analytics.capture(store.browse == .sources ? "source_view" : "topic_view",
+                          ["name": target, "method": "swipe",
+                           "is_custom": store.customTopics.contains(target)])
         if store.browse == .sources { store.selectedSource = target }
         else { store.selectedTopic = target }
         store.barSelection = nil   // selection took over — same chip, no reflow
@@ -472,6 +475,7 @@ struct TopicBar: View {
         .font(Theme.Text.meta)
         return Button {
             KineticGate.suppressed = false   // direct tap earns the kinetic cascade
+            Analytics.capture("topic_view", ["name": topic, "method": "tap", "is_custom": custom])
             withAnimation(Theme.Motion.snappy) {
                 // Epoch bump must live inside the transaction or the pill's fade transition
                 // runs un-animated (a hard cut) instead of fading in at the target chip.

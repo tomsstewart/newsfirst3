@@ -53,6 +53,8 @@ struct BriefCard: View {
                             .kerning(0.8)
                         Spacer()
                         Button {
+                            Analytics.capture("listen_toggle", ["context": isTop ? "briefing" : "topic_brief",
+                                                                "topic": topic, "playing": !speech.isSpeaking])
                             speech.toggle(parts)
                         } label: {
                             HStack(spacing: 5) {
@@ -533,6 +535,7 @@ struct LoadMoreButton: View {
         Button {
             guard !loading else { return }
             loading = true
+            Analytics.capture("load_more", ["topic": store.selectedTopic])
             Task { await store.loadMore(); loading = false }
         } label: {
             HStack(spacing: 7) {

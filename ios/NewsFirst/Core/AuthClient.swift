@@ -85,8 +85,7 @@ final class AuthClient {
             throw NSError(domain: "auth", code: 2, userInfo: [NSLocalizedDescriptionKey: "Wrong or expired code"])
         }
         storeSession(json, fallbackEmail: email)
-        Analytics.alias(userID: uid)
-        Analytics.capture("login_success", ["method": "email_otp"])
+        Analytics.identify(userID: uid, email: self.email, method: "email_otp")
         PushManager.shared.afterSignIn()
     }
 
@@ -107,8 +106,7 @@ final class AuthClient {
             throw NSError(domain: "auth", code: 3, userInfo: [NSLocalizedDescriptionKey: Self.supabaseError(data) ?? "Apple sign-in failed"])
         }
         storeSession(json, fallbackEmail: nil)
-        Analytics.alias(userID: uid)
-        Analytics.capture("login_success", ["method": "apple"])
+        Analytics.identify(userID: uid, email: self.email, method: "apple")
         PushManager.shared.afterSignIn()
     }
 
@@ -160,8 +158,7 @@ final class AuthClient {
             "expires_in": Double(kv["expires_in"] ?? "") as Any,
             "user": user,
         ], fallbackEmail: nil)
-        Analytics.alias(userID: uid)
-        Analytics.capture("login_success", ["method": "google"])
+        Analytics.identify(userID: uid, email: self.email, method: "google")
         PushManager.shared.afterSignIn()
     }
 
@@ -178,6 +175,7 @@ final class AuthClient {
             UserDefaults.standard.removeObject(forKey: k)
         }
         Analytics.capture("sign_out")
+        Analytics.reset()
     }
 
     /// Push local topic prefs to topic_subscriptions (RLS: user's own rows).

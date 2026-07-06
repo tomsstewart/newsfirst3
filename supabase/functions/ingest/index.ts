@@ -91,7 +91,10 @@ export function baseScore(title: string, weight: number): { score: number; break
 // and the quota-limited Gemini pass. High-precision terms only — a wrong topic is worse
 // than a missing one. Articles hinted here reach 2 topics and skip enrichment (saves quota).
 const TOPIC_HINTS: [string, RegExp][] = [
-  ["ai", /\b(ai|artificial intelligence|openai|chatgpt|anthropic|claude|gemini|llms?|machine learning)\b/i],
+  // NO bare "\bai\b": it tagged every passing-mention lifestyle piece ("my son used
+  // AI…") into the AI topic and buried the real industry news. Specific entities only —
+  // the 14 dedicated AI sources still tag via their category, so lab/product news is safe.
+  ["ai", /\b(artificial intelligence|openai|chatgpt|anthropic|claude|gemini|deepmind|llms?|machine learning|hugging face|midjourney|mistral|grok|xai|copilot|gpt-?\d|agentic)\b/i],
   ["crypto", /\b(bitcoin|btc|ethereum|crypto(currenc\w*)?|blockchain|stablecoins?|defi)\b/i],
   ["climate", /\b(climate|heatwaves?|wildfires?|emissions|global warming|drought|el ni[ñn]o)\b/i],
   ["space", /\b(nasa|spacex|rockets?|asteroids?|orbit(al)?|mars|satellites?|telescope)\b/i],
@@ -166,7 +169,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[] }[]> {
   if (items.length === 0) return [];
   const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
-{"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics],
+{"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics. "ai" means the story is substantially ABOUT AI technology, models, labs or the AI industry — a headline merely mentioning AI (lifestyle, opinion, stocks riding the trend) is NOT "ai"],
  "entities": [lowercased key people/companies/products, max 5],
  "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty]}
 Headlines:
@@ -476,6 +479,21 @@ ${withNews.map((tp) => `## ${tp}\n${byTopic[tp].join("\n")}`).join("\n\n")}`;
   }
 }
 
+// ---------- product analytics (server half of the funnel) ----------
+// distinct_id = the Supabase user id — the client $identifies installs to the same
+// id, so sent → delivered → opened stitches into ONE person in PostHog.
+const PH_KEY = "phc_xhoSbWSkg8gukVaNquCm9w977sPsv73qtMtxvzjFeJU8";
+function phCapture(userId: string, event: string, properties: Record<string, unknown>) {
+  fetch("https://eu.i.posthog.com/capture/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: PH_KEY, event, distinct_id: userId,
+      properties: { ...properties, platform: "server-v3" },
+    }),
+  }).catch(() => {});   // analytics must never fail the pipeline
+}
+
 // ---------- alerts (the product: match → claim → push) ----------
 // claim_alerts() in Postgres does all matching/gating and INSERTS the alerts rows
 // atomically (the insert is the claim); this side only fans out to APNs and records
@@ -536,6 +554,10 @@ async function alertsTick(env: Env): Promise<unknown> {
       await db.patch(`alerts?id=eq.${a.alert_id}`,
         { apns_id: accepted, delivered_at: new Date().toISOString() }).catch(() => {});
     }
+    phCapture(a.user_id, "alert_sent", {
+      topic: a.topic, kind: a.kind, alert_id: a.alert_id,
+      apns_accepted: accepted != null,
+    });
   }
   return { claimed: claimed.length, sent, invalidated, failures: failures.slice(0, 5) };
 }
@@ -613,6 +635,7 @@ async function briefPush(env: Env): Promise<unknown> {
       await db.patch(`alerts?id=eq.${alertId}`,
         { apns_id: accepted, delivered_at: new Date().toISOString() }).catch(() => {});
     }
+    phCapture(uid, "brief_sent", { alert_id: alertId, apns_accepted: accepted != null });
   }
   return { users: byUser.size, sent, skipped };
 }

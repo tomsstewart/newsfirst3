@@ -87,10 +87,10 @@ final class FeedStore {
     var enabledTopics: [String] { didSet { defaults.set(enabledTopics, forKey: "enabledTopics"); syncOrder(); validateSelection() } }
     /// One ordered bar for presets AND customs — drag-reorder is free-form across both.
     var topicOrder: [String] { didSet { defaults.set(topicOrder, forKey: "topicOrder") } }
-    var showBriefings: Bool { didSet { defaults.set(showBriefings, forKey: "showBriefings") } }
+    var showBriefings: Bool { didSet { defaults.set(showBriefings, forKey: "showBriefings"); Analytics.capture("settings_change", ["setting": "briefings", "value": showBriefings]) } }
     var disabledSources: Set<String> { didSet { defaults.set(Array(disabledSources), forKey: "disabledSources"); rankedCache.removeAll() } }
-    var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
-    var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll() } }
+    var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance"); Analytics.capture("settings_change", ["setting": "appearance", "value": appearance.rawValue]) } }
+    var regionPref: RegionBucket { didSet { defaults.set(regionPref.rawValue, forKey: "regionPref"); rankedCache.removeAll(); Analytics.capture("settings_change", ["setting": "region", "value": regionPref.rawValue]) } }
     var showPriorityDebug: Bool { didSet { defaults.set(showPriorityDebug, forKey: "priorityDebug") } }
     /// Custom-column engine. HYBRID is the default: our corpus's High-priority
     /// matches lead (the exact stories the push matcher alerts on), Google News
@@ -110,6 +110,7 @@ final class FeedStore {
     var customEngine: CustomEngine {
         didSet {
             defaults.set(customEngine.rawValue, forKey: "customEngine")
+            Analytics.capture("settings_change", ["setting": "custom_engine", "value": customEngine.rawValue])
             customEpoch += 1            // orphan in-flight fetches from the other engine
             enrichQueued.removeAll()
             gnNoImage.removeAll()
@@ -142,8 +143,8 @@ final class FeedStore {
     func awaitingImage(_ a: Article) -> Bool {
         a.isExternal && a.imageURL == nil && googleNewsCustoms && !gnNoImage.contains(a.id)
     }
-    var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode") } }
-    var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode") } }
+    var readerMode: Bool { didSet { defaults.set(readerMode, forKey: "readerMode"); Analytics.capture("settings_change", ["setting": "reader_mode", "value": readerMode]) } }
+    var defaultMode: ViewMode { didSet { defaults.set(defaultMode.rawValue, forKey: "defaultMode"); Analytics.capture("settings_change", ["setting": "default_view", "value": defaultMode.rawValue]) } }
 
     private let api = SupabaseAPI()
     private let defaults = UserDefaults.standard

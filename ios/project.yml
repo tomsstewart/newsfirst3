@@ -47,7 +47,7 @@ targets:
         INFOPLIST_KEY_UIBackgroundModes: audio   # briefing keeps playing when the app is backgrounded
         # v3 ships as an UPDATE to the live listing (v2 is at 1.0.4)
         MARKETING_VERSION: "2.0.0"
-        CURRENT_PROJECT_VERSION: 23
+        CURRENT_PROJECT_VERSION: 24
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO   # standard HTTPS only — skips the TestFlight compliance stop
         DEVELOPMENT_TEAM: 6W4ZBLPC9M
         CODE_SIGN_STYLE: Automatic
