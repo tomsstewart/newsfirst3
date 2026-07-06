@@ -144,9 +144,9 @@ struct ListFeedView: View {
             LazyVStack(spacing: 13) {
                 TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
-                // Headers when tiers mix — EXCEPT custom topics, which always show their
-                // band so the tier of your keyword's news is visible at a glance.
-                let showHeaders = bands.count > 1 || store.customTopics.contains(topic)
+                // Band headers ALWAYS (Tom): a single-tier pane still labels itself —
+                // an unlabeled all-low pane (tech, most days) read as "no ranking".
+                let showHeaders = !bands.isEmpty
                 ForEach(Array(bands.enumerated()), id: \.offset) { bandIndex, band in
                     if showHeaders {
                         PriorityBand(tier: band.tier,
@@ -354,7 +354,7 @@ struct ImmersiveFeedView: View {
             LazyVStack(spacing: 13) {
                 TopicHeaderRow(topic: topic).kineticEntrance(0)
                 BriefCard(topic: topic).kineticEntrance(0)
-                let showHeaders = bands.count > 1 || store.customTopics.contains(topic)
+                let showHeaders = !bands.isEmpty   // always label, even single-tier panes
                 ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
                     if showHeaders {
                         PriorityBand(tier: band.tier)
