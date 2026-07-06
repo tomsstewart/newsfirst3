@@ -379,6 +379,17 @@ final class FeedStore {
         return bar[(idx + offset + bar.count) % bar.count]
     }
 
+    /// Front page only: cap purely-soft-topic breaking at Medium (display tier).
+    private func frontPageSoftCap(_ a: Article) -> Article {
+        guard a.tier == .high, !a.topics.isEmpty,
+              Set(a.topics).isSubset(of: Self.softTopics) else { return a }
+        return Article(id: a.id, url: a.url, title: a.title, excerpt: a.excerpt,
+                       imageURL: a.imageURL, publishedAt: a.publishedAt, topics: a.topics,
+                       regions: a.regions, sourceName: a.sourceName, score: a.score,
+                       tier: .medium, clusterID: a.clusterID, clusterSources: a.clusterSources,
+                       isExternal: a.isExternal)
+    }
+
     /// The one preset pane an article belongs to: its first ENABLED topic tag
     /// (ingest orders tags source-category first, so this is the article's home desk).
     /// Falls back to the first tag so a story never vanishes when its home is disabled.
@@ -405,8 +416,11 @@ final class FeedStore {
             base = customResults[topic] ?? []
         } else if topic == Self.topStories {
             // Everything, locale-weighted — the whole ranked feed IS the home pane.
+            // Soft-topic "breaking" (a 15-source celebrity wedding is real corroboration
+            // but not front-page High — Tom's call) displays as Medium HERE ONLY; the
+            // sports/entertainment panes keep the honest tier.
             let extra = (topicExtra[topic] ?? []).filter { e in !articles.contains(where: { $0.id == e.id }) }
-            base = articles + extra
+            base = (articles + extra).map(frontPageSoftCap)
         } else {
             // Cross-pane dedup (presets only; customs keep every match): an article
             // tagged [tech, ai] shows ONLY in its primary enabled topic, so adjacent
