@@ -56,22 +56,23 @@ enum Analytics {
         userID = nil
     }
 
-    private static let envelope: [String: Any] = {
+    // Immutable after first access (value types only) — safe to share; built with
+    // nonisolated APIs (utsname/ProcessInfo, not MainActor-bound UIDevice).
+    nonisolated(unsafe) private static let envelope: [String: Any] = {
         let info = Bundle.main.infoDictionary
-        var props: [String: Any] = [
+        var sysinfo = utsname(); uname(&sysinfo)
+        let model = withUnsafeBytes(of: &sysinfo.machine) { raw in
+            String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
+        }
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return [
             "$app_version": info?["CFBundleShortVersionString"] as? String ?? "?",
             "$app_build": info?["CFBundleVersion"] as? String ?? "?",
             "platform": "ios-v3",
+            "$os_version": "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)",
+            "$device_model": model,
+            "$device_type": model.hasPrefix("iPad") ? "Tablet" : "Mobile",
         ]
-        #if os(iOS)
-        props["$os_version"] = UIDevice.current.systemVersion
-        props["$device_type"] = UIDevice.current.userInterfaceIdiom == .pad ? "Tablet" : "Mobile"
-        var sysinfo = utsname(); uname(&sysinfo)
-        props["$device_model"] = withUnsafeBytes(of: &sysinfo.machine) { raw in
-            String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
-        }
-        #endif
-        return props
     }()
 
     static func capture(_ event: String, _ properties: [String: Any] = [:]) {
