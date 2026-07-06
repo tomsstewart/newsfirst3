@@ -124,12 +124,17 @@ struct ListFeedView: View {
     @State private var expandedID: UUID?
     @State private var lowHidden = false
 
-    private var bands: [(tier: Article.Tier, items: [Article])] {
-        let v = items
-        return [Article.Tier.high, .medium, .low].compactMap { tier in
-            let items = v.filter { $0.tier == tier }
-            return items.isEmpty ? nil : (tier, items)
+    private var bands: [(tier: Article.Tier, items: [Article], web: Bool)] {
+        // Hybrid custom panes: OUR ranked matches band by tier; Google rows get their
+        // own "From the web" section instead of masquerading as Low Priority.
+        let ours = items.filter { !$0.isExternal }
+        let web = items.filter { $0.isExternal }
+        var out: [(Article.Tier, [Article], Bool)] = [Article.Tier.high, .medium, .low].compactMap { tier in
+            let tierItems = ours.filter { $0.tier == tier }
+            return tierItems.isEmpty ? nil : (tier, tierItems, false)
         }
+        if !web.isEmpty { out.append((.low, web, true)) }
+        return out
     }
 
     var body: some View {
@@ -140,12 +145,14 @@ struct ListFeedView: View {
                 // Headers when tiers mix — EXCEPT custom topics, which always show their
                 // band so the tier of your keyword's news is visible at a glance.
                 let showHeaders = bands.count > 1 || store.customTopics.contains(topic)
-                ForEach(Array(bands.enumerated()), id: \.element.tier) { bandIndex, band in
+                ForEach(Array(bands.enumerated()), id: \.offset) { bandIndex, band in
                     if showHeaders {
-                        PriorityBand(tier: band.tier, trailing: band.tier == .low ? AnyView(hideButton) : nil)
+                        PriorityBand(tier: band.tier,
+                                     trailing: band.tier == .low && !band.web ? AnyView(hideButton) : nil,
+                                     labelOverride: band.web ? "From the web" : nil)
                             .kineticEntrance(bandIndex * 3)
                     }
-                    if !(band.tier == .low && lowHidden && showHeaders) {
+                    if !(band.tier == .low && !band.web && lowHidden && showHeaders) {
                         ForEach(Array(band.items.enumerated()), id: \.element.id) { i, article in
                             articleCell(article)
                                 .kineticEntrance(bandIndex * 3 + i + 1)

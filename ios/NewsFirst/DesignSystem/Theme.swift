@@ -117,9 +117,14 @@ struct TierBadge: View {
 struct PriorityBand: View {
     let tier: Article.Tier
     var trailing: AnyView? = nil
+    /// Hybrid custom panes: Google rows aren't ranked by us — calling them
+    /// "Low Priority" was a lie. They get their own banner.
+    var labelOverride: String? = nil
     @Environment(\.colorScheme) private var scheme
     private var label: String {
-        switch tier { case .high: "High Priority"; case .medium: "Medium Priority"; case .low: "Low Priority" }
+        labelOverride ?? {
+            switch tier { case .high: "High Priority"; case .medium: "Medium Priority"; case .low: "Low Priority" }
+        }()
     }
     var body: some View {
         HStack {
@@ -202,10 +207,16 @@ struct PressableStyle: ButtonStyle {
 /// iOS-26-style glass chip/button surface.
 struct GlassSurface: ViewModifier {
     var prominent = false
+    @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         content
             .background(prominent ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(prominent ? 0.25 : 0.10), lineWidth: 1))
+            // Scheme-aware hairline: the hardcoded white border vanished on the light
+            // canvas — the "+ Custom" chip looked broken in light mode (Tom's report).
+            .overlay(Capsule().strokeBorder(
+                prominent ? Color.white.opacity(0.25)
+                          : (scheme == .light ? Color.black.opacity(0.14) : Color.white.opacity(0.10)),
+                lineWidth: 1))
             .shadow(color: prominent ? Theme.accent.opacity(0.45) : .clear, radius: 8, y: 2)
     }
 }

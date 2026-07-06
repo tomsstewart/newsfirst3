@@ -375,6 +375,13 @@ final class FeedStore {
         return bar[(idx + offset + bar.count) % bar.count]
     }
 
+    /// The one preset pane an article belongs to: its first ENABLED topic tag
+    /// (ingest orders tags source-category first, so this is the article's home desk).
+    /// Falls back to the first tag so a story never vanishes when its home is disabled.
+    private func primaryTopic(of a: Article) -> String {
+        a.topics.first(where: { enabledTopics.contains($0) }) ?? a.topics.first ?? ""
+    }
+
     private func visibleItems(topic: String, source: String) -> [Article] {
         let cacheKey = browse == .sources ? "s:\(source)" : "t:\(topic)"
         if let hit = rankedCache[cacheKey] { return hit }
@@ -397,8 +404,12 @@ final class FeedStore {
             let extra = (topicExtra[topic] ?? []).filter { e in !articles.contains(where: { $0.id == e.id }) }
             base = articles + extra
         } else {
-            let local = articles.filter { $0.topics.contains(topic) }
-            base = local.isEmpty ? (topicExtra[topic] ?? []) : local + (topicExtra[topic] ?? []).filter { e in !local.contains(where: { $0.id == e.id }) }
+            // Cross-pane dedup (presets only; customs keep every match): an article
+            // tagged [tech, ai] shows ONLY in its primary enabled topic, so adjacent
+            // panes stop repeating each other.
+            let local = articles.filter { primaryTopic(of: $0) == topic }
+            base = local.isEmpty ? (topicExtra[topic] ?? []).filter { primaryTopic(of: $0) == topic }
+                 : local + (topicExtra[topic] ?? []).filter { e in primaryTopic(of: e) == topic && !local.contains(where: { $0.id == e.id }) }
         }
         let filtered = base.filter { !disabledSources.contains($0.sourceName) }
         let home = homeCodes
@@ -733,7 +744,16 @@ final class FeedStore {
         // topic for the whole session, on the product's flagship feature.
         guard let results = await searchCustom(topic), epoch == customEpoch else { return }
         customFetchedAt[topic] = .now
-        withAnimation(Theme.Motion.feed) { customResults[topic] = results }
+        let existing = customResults[topic] ?? []
+        if !existing.isEmpty {
+            // Refresh over a rendered pane: identical content must not rewrite (the
+            // "articles load then get replaced" flash), and an updated list slides in
+            // WITHOUT animation — identity-stable rows stay put, only newcomers appear.
+            guard Set(results.map(\.id)) != Set(existing.map(\.id)) else { return }
+            customResults[topic] = results
+        } else {
+            withAnimation(Theme.Motion.feed) { customResults[topic] = results }
+        }
         if googleNewsCustoms { enrichGoogle(topic, epoch: epoch) }
     }
 

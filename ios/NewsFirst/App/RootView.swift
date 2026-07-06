@@ -158,25 +158,27 @@ struct RootView: View {
         // Flexible row (not absolute centering): the full "Immersive" label needs more
         // width than the gap left by absolute centering, which shoved it under TOPICS.
         HStack(spacing: 10) {
-            Button {
+            // Icon-only: the header now also carries the alerts bell (v2.5 parity)
+            // and TOPICS/SOURCES text didn't fit alongside it. onTapGesture, not
+            // Button: a swipe that STARTS here must not toggle the panel (Buttons
+            // fire when a drag ends inside their bounds; tap gestures fail on drags).
+            Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
+                .font(.footnote.bold())
+                .accessibilityLabel(store.browse.rawValue)
+                .accessibilityAddTraits(.isButton)
+                .fixedSize()
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .foregroundStyle(.white)
+                .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
+                .contentShape(Capsule())
+                .onTapGesture {
                     withAnimation(Theme.Motion.card) {
                         store.browse = store.browse == .topics ? .sources : .topics
                     }
                     if store.browse == .sources { Task { await store.loadSources() } }
-                } label: {
-                    // Icon-only: the header now also carries the alerts bell (v2.5
-                    // parity) and TOPICS/SOURCES text didn't fit alongside it.
-                    Image(systemName: store.browse == .topics ? "square.grid.2x2" : "dot.radiowaves.up.forward")
-                        .font(.footnote.bold())
-                        .accessibilityLabel(store.browse.rawValue)
-                        .fixedSize()
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                    .background(store.browse == .topics ? Theme.accent : Color(red: 0.95, green: 0.45, blue: 0.15), in: Capsule())
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                    .foregroundStyle(.white)
-                    .shadow(color: (store.browse == .topics ? Theme.accent : Color.orange).opacity(0.5), radius: 6)
                 }
-            .buttonStyle(PressableStyle())
             Spacer(minLength: 6)
             Picker("View", selection: Binding(
                 get: { store.mode },
@@ -219,6 +221,7 @@ struct RootView: View {
     private enum DragAxis { case horizontal, vertical }
     @State private var dragAxis: DragAxis?
     @State private var feedDrag: CGFloat = 0
+    @State private var commitID = 0   // generation counter: fast-forwarded commits orphan their completion
 
     @ViewBuilder private var feed: some View {
         GeometryReader { geo in
@@ -249,7 +252,12 @@ struct RootView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { v in
-                        guard store.barSelection == nil else { return }   // commit still settling — let it land
+                        // A new touch while the previous commit is still settling:
+                        // fast-forward it (apply selection, snap the carousel) so
+                        // rapid swipe-swipe-swipe never eats a gesture.
+                        if store.barSelection != nil, dragAxis == nil {
+                            finalizeCommit()
+                        }
                         // Latch the axis on first movement: re-evaluating per frame let a
                         // diagonal scroll flip horizontal mid-gesture — the feed lurched
                         // sideways by the full accumulated translation in one frame.
@@ -266,6 +274,9 @@ struct RootView: View {
                         let commit = abs(v.translation.width) > w * 0.28 || abs(v.predictedEndTranslation.width) > w * 0.55
                         if commit {
                             let delta = v.translation.width < 0 ? 1 : -1
+                            let target = store.barItem(offset: delta)
+                            commitID += 1
+                            let myCommit = commitID
                             // .removed, not .logicallyComplete: the latter fires while the
                             // spring tail is still ~1% short, so the pane swap + drag reset
                             // landed a frame early — the visible end-of-swipe jump.
@@ -275,18 +286,11 @@ struct RootView: View {
                                 // progress 0 pins pillRect to the target chip, so the ✕
                                 // grows and the pill glides while the panes settle — one
                                 // motion, no post-animation bar jump.
-                                store.barSelection = store.barItem(offset: delta)
+                                store.barSelection = target
                                 store.swipeProgress = 0
                             } completion: {
-                                KineticGate.suppressed = true
-                                if store.browse == .sources { store.selectedSource = store.barItem(offset: delta) }
-                                else { store.selectedTopic = store.barItem(offset: delta) }
-                                store.barSelection = nil   // selectedTopic took over — same chip, no reflow
-                                let landed = store.barItem(offset: 0)
-                                if store.customTopics.contains(landed) { Task { await store.loadCustom(landed) } }
-                                store.prefetchImages()
-                                feedDrag = 0
-                                store.swipeProgress = 0
+                                guard commitID == myCommit else { return }   // fast-forwarded by a newer swipe
+                                applyCommit(target)
                             }
                         } else {
                             withAnimation(Theme.Motion.card) { feedDrag = 0; store.swipeProgress = 0 }
@@ -294,6 +298,27 @@ struct RootView: View {
                     }
             )
         }
+    }
+
+    /// Land a settling commit: apply the selection and snap the carousel to rest.
+    private func applyCommit(_ target: String) {
+        KineticGate.suppressed = true
+        if store.browse == .sources { store.selectedSource = target }
+        else { store.selectedTopic = target }
+        store.barSelection = nil   // selection took over — same chip, no reflow
+        if store.customTopics.contains(target) { Task { await store.loadCustom(target) } }
+        store.prefetchImages()
+        feedDrag = 0
+        store.swipeProgress = 0
+    }
+
+    /// Fast-forward the in-flight commit so a new gesture starts on a clean pane.
+    private func finalizeCommit() {
+        guard let settling = store.barSelection else { return }
+        commitID += 1   // orphan the pending animation completion
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { applyCommit(settling) }
     }
 
     @ViewBuilder private func pane(offset: Int, width: CGFloat) -> some View {
