@@ -166,10 +166,11 @@ async function sha256(s: string): Promise<string> {
 // ---------- Gemini enrichment (batched; free tier) ----------
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[]): Promise<{ topics: string[]; entities: string[]; regions: string[]; importance?: number }[]> {
+async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[]): Promise<any[]> {
   if (items.length === 0) return [];
-  const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
-{"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics. "ai" means the story is substantially ABOUT AI technology, models, labs or the AI industry — a headline merely mentioning AI (lifestyle, opinion, stocks riding the trend) is NOT "ai"],
+  const prompt = `For each numbered news headline below, return a JSON array of objects (same order, same length):
+{"n": THE item number shown before the headline (1-based), echoed back EXACTLY so each result can be matched to its headline,
+ "topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics. "ai" means the story is substantially ABOUT AI technology, models, labs or the AI industry — a headline merely mentioning AI (lifestyle, opinion, stocks riding the trend) is NOT "ai"],
  "entities": [lowercased key people/companies/products, max 5],
  "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty],
  "importance": integer 0-3}
@@ -422,9 +423,9 @@ async function enrichBackfill(env: Env): Promise<number> {
     `articles?importance=is.null&published_at=gt.${since}&select=id,title,excerpt,topics,regions&order=published_at.desc&limit=200`,
   );
   if (!thin.length) return { patched: 0, rated: 0, candidates: 0 };
-  let meta: { topics: string[]; entities: string[]; regions: string[]; importance?: number }[];
+  let arr: any[];
   try {
-    meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation
+    arr = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation
   } catch (e) {
     // Enrichment is an enhancement, not a dependency — but report WHY so a dead Gemini
     // path is visible in the invoke response instead of silently returning 0 patches.
@@ -432,10 +433,19 @@ async function enrichBackfill(env: Env): Promise<number> {
     console.error("enrich:", error);
     return { patched: 0, rated: 0, candidates: thin.length, error };
   }
+  // Realign by the echoed item number `n` — NOT by position. Positional alignment silently
+  // corrupts metadata the moment the model drops/reorders even one item in the batch (the
+  // 2026-07-06 "Lauren Bennett clustered with the World Cup" scramble + wrong tiers). A slot
+  // with no matching n stays null and is simply retried next run.
+  const meta: (any | null)[] = new Array(thin.length).fill(null);
+  for (const o of arr) {
+    const n = Number(o?.n);
+    if (Number.isInteger(n) && n >= 1 && n <= thin.length) meta[n - 1] = o;
+  }
   let patched = 0, rated = 0;
   for (let i = 0; i < thin.length; i++) {
     const m = meta[i];
-    if (!m) continue;   // tolerant: model returned fewer objects than headlines
+    if (!m) continue;   // no aligned result for this headline — retried next run
     // Tolerant: models sometimes return "3" (string) — Number() both; reject NaN.
     const impRaw = Number(m.importance);
     const imp = m.importance != null && Number.isFinite(impRaw) ? Math.max(0, Math.min(3, Math.round(impRaw))) : null;
@@ -449,8 +459,8 @@ async function enrichBackfill(env: Env): Promise<number> {
     }).catch((e) => console.error(`enrich patch ${thin[i].id}:`, e instanceof Error ? e.message : e));
     patched++;
   }
-  console.log(`enrich_backfill: candidates=${thin.length} returned=${meta.length} patched=${patched} rated=${rated}`);
-  return { patched, rated, candidates: thin.length, returned: meta.length };
+  console.log(`enrich_backfill: candidates=${thin.length} returned=${arr.length} aligned=${meta.filter(Boolean).length} patched=${patched} rated=${rated}`);
+  return { patched, rated, candidates: thin.length, returned: arr.length, aligned: meta.filter(Boolean).length };
 }
 
 
@@ -550,13 +560,17 @@ async function alertsTick(env: Env): Promise<unknown> {
 
   let sent = 0, invalidated = 0;
   const failures: string[] = [];
+  // Title format (Tom, 2026-07-06): "Source | Topic" with the headline on the body line;
+  // breaking keeps its prefix. Custom-keyword subs have no TOPIC_LABELS entry, so capitalise
+  // the raw keyword ("claude" -> "Claude"). Source now lives in the title, so drop the subtitle.
+  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   for (const a of claimed) {
-    const label = TOPIC_LABELS[a.topic] ?? a.topic;
+    const label = TOPIC_LABELS[a.topic] ?? cap(a.topic);
+    const head = `${a.source_name} | ${label}`;
     const payload = {
       aps: {
         alert: {
-          title: a.kind === "breaking" ? `Breaking · ${label}` : label,
-          subtitle: a.source_name,
+          title: a.kind === "breaking" ? `Breaking · ${head}` : head,
           body: a.title,
         },
         sound: "default",
