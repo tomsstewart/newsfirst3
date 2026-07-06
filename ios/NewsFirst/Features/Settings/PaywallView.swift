@@ -24,7 +24,7 @@ struct PaywallView: View {
                 .foregroundStyle(Theme.tierMedium)
             Text("NewsFirst Premium")
                 .font(Theme.Text.hero)
-            Text("You've filled your \(Entitlements.freeCustomTopics) free custom topics. Premium removes the ceiling.")
+            Text("The free plan includes \(Entitlements.freeCustomTopics) custom topics — yours forever, no card. Premium removes the ceiling.")
                 .font(Theme.Text.excerpt).foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 12) {
@@ -55,7 +55,7 @@ struct PaywallView: View {
                     if buying {
                         ProgressView().tint(.white)
                     } else {
-                        Text("Go Premium — \(ent.product?.displayPrice ?? "£3.99") / month")
+                        Text(hasTrial ? "Start 7-day free trial" : "Go Premium — \(price) / month")
                     }
                 }
                 .font(Theme.Text.cardTitle)
@@ -66,6 +66,13 @@ struct PaywallView: View {
             }
             .buttonStyle(PressableStyle())
 
+            if hasTrial {
+                Text("Then \(price) / month. Cancel anytime during the trial and pay nothing.")
+                    .font(Theme.Text.meta).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+
             if unavailable {
                 Text("Purchases aren't live yet — Premium arrives with the App Store release. Your topics are safe; the first three keep working.")
                     .font(Theme.Text.meta).foregroundStyle(.secondary)
@@ -74,7 +81,7 @@ struct PaywallView: View {
             HStack {
                 Button("Restore purchase") { Task { await ent.restore(); if ent.isPremium { dismiss() } } }
                 Spacer()
-                Button("Maybe later") { dismiss() }
+                Button("Stay on Free") { dismiss() }
             }
             .font(Theme.Text.meta)
             .foregroundStyle(.secondary)
@@ -83,6 +90,15 @@ struct PaywallView: View {
         .padding(20)
         .background(Theme.canvas)
         .onAppear { Analytics.capture("paywall_open") }
+    }
+
+    private var price: String { ent.product?.displayPrice ?? "£3.99" }
+    /// True when StoreKit reports the intro offer (set in ASC for all territories) —
+    /// and as the fallback while the product hasn't loaded, since the offer exists
+    /// for every new subscriber.
+    private var hasTrial: Bool {
+        guard let sub = ent.product?.subscription else { return true }
+        return sub.introductoryOffer?.paymentMode == .freeTrial
     }
 
     private func benefit(_ icon: String, _ title: String, _ sub: String) -> some View {
