@@ -166,12 +166,18 @@ async function sha256(s: string): Promise<string> {
 // ---------- Gemini enrichment (batched; free tier) ----------
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[] }[]> {
+async function enrichChunk(env: Env, items: { title: string; excerpt: string | null }[], attempt = 0): Promise<{ topics: string[]; entities: string[]; regions: string[]; importance?: number }[]> {
   if (items.length === 0) return [];
   const prompt = `For each numbered news headline below, return a JSON array (same order, same length) of objects:
 {"topics": [THE single best-fitting slug from: world,business,economics,tech,ai,science,sports,space,climate,entertainment,travel,crypto,health,gaming — plus AT MOST one secondary slug ONLY when the story is genuinely about both; when unsure use fewer topics. "ai" means the story is substantially ABOUT AI technology, models, labs or the AI industry — a headline merely mentioning AI (lifestyle, opinion, stocks riding the trend) is NOT "ai"],
  "entities": [lowercased key people/companies/products, max 5],
- "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty]}
+ "regions": [ISO-3166 alpha-2 codes the story is ABOUT, max 3, often empty],
+ "importance": front-page importance for a general audience, exactly one of:
+   3 = drop-everything breaking news (major attack or disaster, war starts or sharply escalates, death or assassination of a major world figure, market crash, head of government falls);
+   2 = significant hard-news development (world affairs, politics, business, economy, tech, science, health) a serious front page would lead with;
+   1 = routine or soft: sports results/fixtures/previews/transfer chat, celebrity and entertainment, weather chatter, reviews, opinion, interviews, incremental follow-ups, minor local items;
+   0 = fluff, promos, listicles, quizzes, shopping deals.
+ Sports and entertainment are NEVER 3, and are 2 only when the story transcends the game/show itself (stadium disaster, superstar dies, league-wide scandal). Be strict: when torn between two ratings, pick the lower.}
 Headlines:
 ${items.map((it, i) => `${i + 1}. ${it.title} — ${it.excerpt?.slice(0, 140) ?? ""}`).join("\n")}
 Return ONLY the JSON array.`;
@@ -403,21 +409,25 @@ async function enrichBackfill(env: Env): Promise<number> {
   const db = sb(env);
   const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
   const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
-    `articles?published_at=gt.${since}&select=id,title,excerpt,topics,regions&order=published_at.desc&limit=500`,
+    `articles?published_at=gt.${since}&select=id,title,excerpt,topics,regions,importance&order=published_at.desc&limit=500`,
   );
   // 200/call keeps up with ~2-2.5k articles/day across 12 daily runs (100 ran a deficit
   // that aged out of the 48h window permanently unenriched). Still exactly one call.
-  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1).slice(0, 200);
+  // importance-null articles are included even when topic-hinted: every article needs
+  // a rating — the High tier gate (0029) is importance-driven.
+  const thin = (rows as any[]).filter((r) => (r.topics ?? []).length <= 1 || r.importance == null).slice(0, 200);
   if (!thin.length) return 0;
   const meta = await enrichChunk(env, thin);   // exactly ONE Gemini call per invocation (quota: 20/day)
   let patched = 0;
   for (let i = 0; i < thin.length; i++) {
     const m = meta[i];
-    if (!m.topics.length && !m.entities.length) continue;
+    const imp = typeof m.importance === "number" ? Math.max(0, Math.min(3, Math.round(m.importance))) : null;
+    if (!m.topics.length && !m.entities.length && imp == null) continue;
     await db.patch(`articles?id=eq.${thin[i].id}`, {
       topics: [...new Set([...((thin[i] as any).topics ?? []), ...m.topics])],
       // Union: Gemini often returns [] regions; wholesale overwrite erased the ingest tag.
       entities: m.entities, regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
+      ...(imp != null ? { importance: imp } : {}),
     }).catch(() => {});
     patched++;
   }
