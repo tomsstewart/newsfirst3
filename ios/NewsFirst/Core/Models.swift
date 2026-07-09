@@ -29,6 +29,14 @@ struct Article: Codable, Identifiable, Hashable {
         case clusterID = "cluster_id"
         case clusterSources = "cluster_sources"
     }
+
+    /// Display copy at a different tier. Used to cap the High band to a handful without
+    /// touching the server-computed tier (badge + band header then stay consistent).
+    func withTier(_ t: Tier) -> Article {
+        Article(id: id, url: url, title: title, excerpt: excerpt, imageURL: imageURL,
+                publishedAt: publishedAt, topics: topics, regions: regions, sourceName: sourceName,
+                score: score, tier: t, clusterID: clusterID, clusterSources: clusterSources, isExternal: isExternal)
+    }
 }
 
 /// Per-topic notification control — a core product feature, mirrored by

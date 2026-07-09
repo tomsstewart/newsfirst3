@@ -237,6 +237,10 @@ struct RootView: View {
                         pane(offset: 1, width: w)
                     }
                     .offset(x: -w + feedDrag)
+                    // Never animate the -w centering when the layout width first resolves:
+                    // on a cold launch that 0→width settle animated the panes sliding in
+                    // from the right. Swipe drags animate via their own transactions, not w.
+                    .animation(nil, value: w)
                     // A latched horizontal swipe owns the touch: the column must not
                     // keep scrolling vertically underneath the carousel drag.
                     .scrollDisabled(dragAxis == .horizontal)
@@ -331,6 +335,12 @@ struct RootView: View {
             if items.isEmpty {
                 if store.browse == .topics, store.isCustomPending(item) {
                     FeedSkeleton(mode: store.mode)   // search in flight — never a black void
+                } else if store.browse == .topics, !store.customTopics.contains(item),
+                          (!store.hasLoadedOnce || store.isRefreshing) {
+                    // First-launch / refresh race: a preset or Top Stories pane with no
+                    // items yet is still LOADING, not empty — show the skeleton so the
+                    // splash never dismisses onto a blank screen. (Blank-on-launch fix.)
+                    FeedSkeleton(mode: store.mode)
                 } else {
                     EmptyTopicView(topic: item)
                 }
@@ -452,12 +462,15 @@ struct TopicBar: View {
             if custom {
                 // Alerts are the point of a custom topic: the chip wears the bell state.
                 let level = store.customLevel(topic)
+                // Tri-state bell, matching v2.5 + the header row: off = greyed slash,
+                // high-only = white, all = blue. (Was: high rendered red via tierHigh,
+                // off a radiowaves glyph — inconsistent with the header.)
                 Image(systemName: level == .all ? "bell.badge.fill"
-                                : level == .high ? "bell.fill" : "dot.radiowaves.left.and.right")
+                                : level == .high ? "bell.fill" : "bell.slash")
                     .font(.caption2)
                     .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
-                                   : level == .high ? AnyShapeStyle(Theme.tierHigh)
-                                   : AnyShapeStyle(.secondary))
+                                   : level == .high ? AnyShapeStyle(.white)
+                                   : AnyShapeStyle(.tertiary))
             } else if topic == FeedStore.topStories {
                 Image(systemName: "flame.fill").font(.caption2)
             }

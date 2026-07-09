@@ -443,6 +443,11 @@ async function enrichBackfill(env: Env): Promise<number> {
     if (Number.isInteger(n) && n >= 1 && n <= thin.length) meta[n - 1] = o;
   }
   let patched = 0, rated = 0;
+  // Build the patch list first, then apply with bounded concurrency. 200 SEQUENTIAL
+  // PATCHes (plus the Gemini call + its backoff waits) were overrunning the edge
+  // function's ~150s wall-clock limit → HTTP 546, so the backfill kept dying before
+  // it committed. Batches of 20 concurrent PATCHes cut that wall-time ~10x.
+  const toPatch: { id: string; body: Record<string, unknown> }[] = [];
   for (let i = 0; i < thin.length; i++) {
     const m = meta[i];
     if (!m) continue;   // no aligned result for this headline — retried next run
@@ -451,13 +456,21 @@ async function enrichBackfill(env: Env): Promise<number> {
     const imp = m.importance != null && Number.isFinite(impRaw) ? Math.max(0, Math.min(3, Math.round(impRaw))) : null;
     if (imp != null) rated++;
     if (!(m.topics?.length) && !(m.entities?.length) && imp == null) continue;
-    await db.patch(`articles?id=eq.${thin[i].id}`, {
-      topics: [...new Set([...((thin[i] as any).topics ?? []), ...(m.topics ?? [])])],
-      // Union: Gemini often returns [] regions; wholesale overwrite erased the ingest tag.
-      entities: m.entities ?? [], regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
-      ...(imp != null ? { importance: imp } : {}),
-    }).catch((e) => console.error(`enrich patch ${thin[i].id}:`, e instanceof Error ? e.message : e));
-    patched++;
+    toPatch.push({
+      id: thin[i].id,
+      body: {
+        topics: [...new Set([...((thin[i] as any).topics ?? []), ...(m.topics ?? [])])],
+        // Union: Gemini often returns [] regions; wholesale overwrite erased the ingest tag.
+        entities: m.entities ?? [], regions: [...new Set([...((thin[i] as any).regions ?? []), ...(m.regions ?? [])])],
+        ...(imp != null ? { importance: imp } : {}),
+      },
+    });
+  }
+  for (let i = 0; i < toPatch.length; i += 20) {
+    await Promise.all(toPatch.slice(i, i + 20).map((p) =>
+      db.patch(`articles?id=eq.${p.id}`, p.body)
+        .then(() => { patched++; })
+        .catch((e) => console.error(`enrich patch ${p.id}:`, e instanceof Error ? e.message : e))));
   }
   console.log(`enrich_backfill: candidates=${thin.length} returned=${arr.length} aligned=${meta.filter(Boolean).length} patched=${patched} rated=${rated}`);
   return { patched, rated, candidates: thin.length, returned: arr.length, aligned: meta.filter(Boolean).length };

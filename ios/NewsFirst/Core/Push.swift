@@ -89,7 +89,8 @@ final class PushManager: NSObject {
 
     func afterSignIn() {
         if let parked = parkedToken { Task { await upsertDevice(parked) } }
-        if !(defaults.stringArray(forKey: "notifyTopics") ?? []).isEmpty { enablePush() }
+        let levels = defaults.dictionary(forKey: "notifyLevels") as? [String: String] ?? [:]
+        if levels.values.contains(where: { $0 != "none" }) { enablePush() }
         Task { await AuthClient.shared.syncTopics(
             preset: defaults.stringArray(forKey: "enabledTopics") ?? [],
             custom: defaults.stringArray(forKey: "customTopics") ?? []) }

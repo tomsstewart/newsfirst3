@@ -162,8 +162,16 @@ final class FeedStore {
         customEngine = defaults.string(forKey: "customEngine").flatMap(CustomEngine.init) ?? .hybrid
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? false   // opt-in: reader swallowed consent screens
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
-        notifyTopics = Set(defaults.stringArray(forKey: "notifyTopics") ?? [])
-        customNotifyLevels = defaults.dictionary(forKey: "customNotifyLevels") as? [String: String] ?? [:]
+        // Unified per-topic notify level (presets, customs, and Top Stories alike).
+        // Migrate the old split model: notifyTopics Set (preset='high') + customNotifyLevels.
+        if let saved = defaults.dictionary(forKey: "notifyLevels") as? [String: String] {
+            notifyLevels = saved
+        } else {
+            var m = defaults.dictionary(forKey: "customNotifyLevels") as? [String: String] ?? [:]
+            for t in defaults.stringArray(forKey: "notifyTopics") ?? [] where m[t] == nil { m[t] = "high" }
+            notifyLevels = m
+            defaults.set(m, forKey: "notifyLevels")
+        }
         showBriefings = defaults.object(forKey: "showBriefings") as? Bool ?? true
         topicOrder = defaults.stringArray(forKey: "topicOrder") ?? []
         mode = defaultMode
@@ -477,6 +485,20 @@ final class FeedStore {
         return !hasLoadedOnce && articles.isEmpty
     }
 
+    /// "High Priority" is meant to be a handful, not a wall of red on a busy news day
+    /// (Tom, 2026-07-09: a pane should show ~0-3 high). Cap the High band to the top 3
+    /// ranked items; the overflow drops into Medium as display copies (so tier badge and
+    /// band header stay consistent). Input is already rank-sorted within each tier.
+    static let highBandCap = 3
+    static func cappedBands(_ items: [Article]) -> (high: [Article], medium: [Article], low: [Article]) {
+        let highAll = items.filter { $0.tier == .high }
+        let high = Array(highAll.prefix(highBandCap))
+        let demoted = highAll.dropFirst(highBandCap).map { $0.withTier(.medium) }
+        let medium = demoted + items.filter { $0.tier == .medium }
+        let low = items.filter { $0.tier == .low }
+        return (high, Array(medium), low)
+    }
+
     /// Full Coverage sheet: the seed article whose story cluster is open.
     var story: Article? {
         didSet { if story != nil { Analytics.capture("full_coverage_open") } }
@@ -486,38 +508,40 @@ final class FeedStore {
     private(set) var dismissedBriefs: Set<String> = []
     func dismissBrief(_ topic: String) { dismissedBriefs.insert(topic) }
 
-    /// Per-topic notification opt-in (v2.5's bell-next-to-title). Bell on = server
-    /// notify_level 'high' (breaking only); custom topics always alert on any match.
-    var notifyTopics: Set<String> {
-        didSet { defaults.set(Array(notifyTopics), forKey: "notifyTopics") }
+    /// Unified per-topic notify level for presets, custom topics AND Top Stories
+    /// ("top"). Maps to server `topic_subscriptions.notify_level`. The bell cycles
+    /// off → high-only → all → off. Custom topics default to 'all' (radar semantics —
+    /// they start loud); presets and Top Stories default to off.
+    var notifyLevels: [String: String] {
+        didSet { defaults.set(notifyLevels, forKey: "notifyLevels") }
     }
-    func toggleNotify(_ topic: String) {
-        if notifyTopics.contains(topic) { notifyTopics.remove(topic) } else { notifyTopics.insert(topic) }
-        Analytics.capture("topic_notify_toggle", ["topic": topic, "on": notifyTopics.contains(topic)])
-        // The bell IS the moment of intent: ask for permission here, never at launch.
-        if notifyTopics.contains(topic) { PushManager.shared.enablePush() }
-        Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
-    }
+    /// Topics with any alerting on — used for the Settings summary count.
+    var notifyTopics: Set<String> { Set(notifyLevels.filter { $0.value != "none" }.keys) }
 
-    /// Custom topics alert on EVERY match by default (radar semantics). The bell
-    /// cycles all → high-only → off; absent key = all, so new topics start loud.
-    var customNotifyLevels: [String: String] {
-        didSet { defaults.set(customNotifyLevels, forKey: "customNotifyLevels") }
+    func notifyLevel(_ topic: String) -> NotifyLevel {
+        if let raw = notifyLevels[topic], let lvl = NotifyLevel(rawValue: raw) { return lvl }
+        return customTopics.contains(topic) ? .all : .none
     }
-    func customLevel(_ topic: String) -> NotifyLevel {
-        NotifyLevel(rawValue: customNotifyLevels[topic] ?? "") ?? .all
-    }
-    func cycleCustomNotify(_ topic: String) {
-        let next: NotifyLevel = switch customLevel(topic) {
-        case .all: .high
-        case .high: .none
-        case .none: .all
+    /// Back-compat alias (chip rendering calls this).
+    func customLevel(_ topic: String) -> NotifyLevel { notifyLevel(topic) }
+
+    func cycleNotify(_ topic: String) {
+        // Top Stories maps server-side to breaking-only, so it's a plain off↔on toggle
+        // (no separate 'all' state). Everything else cycles off → high → all → off.
+        let isTop = topic == Self.topStories
+        let next: NotifyLevel = switch notifyLevel(topic) {
+        case .none: .high
+        case .high: isTop ? .none : .all
+        case .all:  .none
         }
-        customNotifyLevels[topic] = next.rawValue
+        notifyLevels[topic] = next.rawValue
         Analytics.capture("topic_notify_toggle", ["topic": topic, "level": next.rawValue])
+        // The bell IS the moment of intent: ask for permission here, never at launch.
         if next != .none { PushManager.shared.enablePush() }
         Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
     }
+    /// Back-compat alias.
+    func cycleCustomNotify(_ topic: String) { cycleNotify(topic) }
 
     /// Daily-brief notification tap: wait for the feed (briefing is composed from it),
     /// then speak. Audio session is .playback — keeps reading when the app backgrounds.
@@ -740,7 +764,7 @@ final class FeedStore {
         withAnimation(Theme.Motion.snappy) {
             customTopics.removeAll { $0 == topic }
             customResults[topic] = nil
-            customNotifyLevels[topic] = nil
+            notifyLevels[topic] = nil
             if selectedTopic == topic { selectedTopic = enabledTopics.first ?? "world" }
         }
     }

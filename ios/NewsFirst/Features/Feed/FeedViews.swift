@@ -131,10 +131,11 @@ struct ListFeedView: View {
         // own "From the web" section instead of masquerading as Low Priority.
         let ours = items.filter { !$0.isExternal }
         let web = items.filter { $0.isExternal }
-        var out: [(Article.Tier, [Article], Bool)] = [Article.Tier.high, .medium, .low].compactMap { tier in
-            let tierItems = ours.filter { $0.tier == tier }
-            return tierItems.isEmpty ? nil : (tier, tierItems, false)
-        }
+        let (high, medium, low) = FeedStore.cappedBands(ours)
+        var out: [(Article.Tier, [Article], Bool)] = []
+        if !high.isEmpty { out.append((.high, high, false)) }
+        if !medium.isEmpty { out.append((.medium, medium, false)) }
+        if !low.isEmpty { out.append((.low, low, false)) }
         if !web.isEmpty { out.append((.low, web, true)) }
         return out
     }
@@ -343,10 +344,12 @@ struct ImmersiveFeedView: View {
     @State private var lowHidden = false
 
     private var bands: [(tier: Article.Tier, items: [Article])] {
-        [Article.Tier.high, .medium, .low].compactMap { tier in
-            let tierItems = items.filter { $0.tier == tier }
-            return tierItems.isEmpty ? nil : (tier, tierItems)
-        }
+        let (high, medium, low) = FeedStore.cappedBands(items)
+        var out: [(Article.Tier, [Article])] = []
+        if !high.isEmpty { out.append((.high, high)) }
+        if !medium.isEmpty { out.append((.medium, medium)) }
+        if !low.isEmpty { out.append((.low, low)) }
+        return out
     }
 
     var body: some View {
@@ -576,45 +579,33 @@ struct TopicHeaderRow: View {
             Text(FeedStore.displayName(topic))
                 .font(.system(size: 28, weight: .heavy))
                 .lineLimit(1)
-            if store.browse == .topics, topic != FeedStore.topStories {
-                if store.customTopics.contains(topic) {
-                    // Custom topics: tri-state bell — all (blue, default) → high-only → off.
-                    let level = store.customLevel(topic)
-                    Button {
-                        store.cycleCustomNotify(topic)
-                        switch store.customLevel(topic) {
-                        case .all: showToast("All notifications")
-                        case .high: showToast("High priority only")
-                        case .none: showToast("Notifications off")
-                        }
-                    } label: {
-                        Image(systemName: level == .all ? "bell.badge.fill"
-                                        : level == .high ? "bell.fill" : "bell.slash")
-                            .font(.footnote)
-                            // blue = all · white = high only · greyed = off
-                            .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
-                                           : level == .high ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                            .padding(8)
-                            .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
-                            .accessibilityLabel(level == .all ? "Alerts: every match"
-                                              : level == .high ? "Alerts: breaking only" : "Alerts off")
+            if store.browse == .topics {
+                // Unified tri-state bell for every topic — presets, customs, and Top
+                // Stories alike (Top Stories = breaking-news toggle). off = greyed slash,
+                // high-only = white, all = blue. (Dedup now handles the old "all = spam"
+                // worry, so presets get the loud state too.)
+                let level = store.notifyLevel(topic)
+                let isTop = topic == FeedStore.topStories
+                Button {
+                    store.cycleNotify(topic)
+                    switch store.notifyLevel(topic) {
+                    case .all:  showToast("All notifications")
+                    case .high: showToast("High priority only")
+                    case .none: showToast("Notifications off")
                     }
-                    .buttonStyle(PressableStyle())
-                } else {
-                    Button {
-                        store.toggleNotify(topic)
-                        showToast(store.notifyTopics.contains(topic) ? "High priority only" : "Notifications off")
-                    } label: {
-                        // Preset topics cap at high-only by design ("all" on Business = spam):
-                        // white = high only · greyed = off.
-                        Image(systemName: store.notifyTopics.contains(topic) ? "bell.fill" : "bell.slash")
-                            .font(.footnote)
-                            .foregroundStyle(store.notifyTopics.contains(topic) ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                            .padding(8)
-                            .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
-                    }
-                    .buttonStyle(PressableStyle())
+                } label: {
+                    Image(systemName: level == .all ? "bell.badge.fill"
+                                    : level == .high ? "bell.fill" : "bell.slash")
+                        .font(.footnote)
+                        .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
+                                       : level == .high ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                        .padding(8)
+                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                        .accessibilityLabel(level == .all ? "Alerts: every match"
+                                          : level == .high ? (isTop ? "Alerts: breaking news" : "Alerts: breaking only")
+                                          : "Alerts off")
                 }
+                .buttonStyle(PressableStyle())
             }
             Spacer(minLength: 8)
             if store.browse == .topics {
