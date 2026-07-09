@@ -438,7 +438,14 @@ final class FeedStore {
             base = local.isEmpty ? (topicExtra[topic] ?? []).filter { primaryTopic(of: $0) == topic }
                  : local + (topicExtra[topic] ?? []).filter { e in primaryTopic(of: e) == topic && !local.contains(where: { $0.id == e.id }) }
         }
-        let filtered = base.filter { !disabledSources.contains($0.sourceName) }
+        // Cross-surface dedup (Tom, 2026-07-10): the big breaking (High) stories are the
+        // FRONT PAGE — they live on Top Stories. A preset topic column shows that topic's
+        // ongoing feed WITHOUT repeating the front-page High items, so the same story
+        // never appears in both Top Stories and its column. (Customs keep every match.)
+        let isPresetPane = topic != Self.topStories && !customTopics.contains(topic)
+        let filtered = base.filter {
+            !disabledSources.contains($0.sourceName) && !(isPresetPane && $0.tier == .high)
+        }
         let home = homeCodes
         let frontPage = topic == Self.topStories
         let ranked = filtered.sorted {

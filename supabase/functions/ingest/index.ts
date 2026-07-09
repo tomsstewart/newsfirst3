@@ -411,17 +411,13 @@ async function healthWatchdog(env: Env): Promise<void> {
 
 async function enrichBackfill(env: Env): Promise<number> {
   const db = sb(env);
-  const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
-  // Server-side unrated filter + newest-first: successive runs walk the ENTIRE unrated
-  // backlog, not just a fetched-then-filtered newest-500 window. That old cap left
-  // breaking items >~5h old — the actual High candidates — permanently unrated, so the
-  // importance gate never governed them. Paired with the hourly enrich cron (migration
-  // 0030): 200/run × 24 = 4800/day > ~2500 new/day, so every article is rated within
-  // ~1-2h of publish, well inside the 6h High window. Every article needs a rating —
-  // the High tier gate (0029) is importance-driven.
-  const thin = await db.get<{ id: string; title: string; excerpt: string | null; topics: string[]; regions: string[] }[]>(
-    `articles?importance=is.null&published_at=gt.${since}&select=id,title,excerpt,topics,regions&order=published_at.desc&limit=200`,
-  );
+  // Rate the TIER CANDIDATES first, not the whole backlog (migration 0035): unrated
+  // articles from the last 12h (the only window tiers care about), corroborated/breaking
+  // first. Gemini free tier is ~20 calls/day, so spending it on routine filler left the
+  // real High/Medium candidates unrated. This bounded, prioritised set means a couple of
+  // calls cover what matters and Gemini never "runs out" for it; older/routine stay Low.
+  const thin = await db.postRows("rpc/unrated_for_enrich", { lim: 200 }, "return=representation") as
+    { id: string; title: string; excerpt: string | null; topics: string[]; regions: string[] }[];
   if (!thin.length) return { patched: 0, rated: 0, candidates: 0 };
   let arr: any[];
   try {
