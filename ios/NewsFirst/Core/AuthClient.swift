@@ -130,9 +130,12 @@ final class AuthClient {
                 else { cont.resume(throwing: err ?? URLError(.userCancelledAuthentication)) }
             }
             session.presentationContextProvider = WebAuthPresenter.shared
-            // Fresh cookies every attempt: a failed run's web session otherwise
-            // auto-skips Google's account screen and replays the same failure.
-            session.prefersEphemeralWebBrowserSession = true
+            // NON-ephemeral: share Safari's cookies so Google shows the tap-to-pick
+            // account chooser (with prompt=select_account forcing it) instead of an
+            // ephemeral cookieless session that has no known accounts and makes the user
+            // TYPE their email every time (Tom's regression, 2026-07-09). prompt=
+            // select_account already prevents the silent auto-pick this used to guard.
+            session.prefersEphemeralWebBrowserSession = false
             session.start()
         }
         var kv: [String: String] = [:]

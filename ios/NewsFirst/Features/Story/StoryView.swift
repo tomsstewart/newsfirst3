@@ -11,10 +11,17 @@ struct BreakingInboxView: View {
         VStack(spacing: 0) {
             HStack {
                 HStack(spacing: 7) {
-                    Image(systemName: "bell.badge.fill").font(.subheadline).foregroundStyle(Theme.tierHigh)
-                    Text("Breaking").font(Theme.Text.headline)
+                    Image(systemName: "bell.badge.fill").font(.subheadline).foregroundStyle(Theme.accent)
+                    Text("Notifications").font(Theme.Text.headline)
                 }
                 Spacer()
+                // Clear all: hides everything sent so far (local watermark; history stays server-side).
+                if !store.inbox.isEmpty {
+                    Button { store.clearInbox() } label: {
+                        Text("Clear all").font(Theme.Text.meta).foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(PressableStyle())
+                }
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.primary)
                         .padding(9).background(.ultraThinMaterial, in: Circle())
@@ -26,19 +33,20 @@ struct BreakingInboxView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    if store.breakingStories.isEmpty {
+                    if store.inbox.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "bell.slash").font(.system(size: 30)).foregroundStyle(.tertiary)
-                            Text("Nothing breaking right now")
+                            Text("No notifications yet")
                                 .font(Theme.Text.cardTitle)
-                            Text("This fills the moment a story is corroborated by 3+ sources within 45 minutes.")
+                            Text("Stories you've been alerted about land here. Turn on the bell for a topic or Top Stories to start.")
                                 .font(Theme.Text.excerpt).foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 50)
                     } else {
-                        ForEach(store.breakingStories) { a in
+                        ForEach(store.inbox) { item in
+                            let a = item.article
                             Button {
                                 // Same landing card as a real push tap (hear it / read it).
                                 // It presents from the root, so the inbox steps aside first.
@@ -50,8 +58,6 @@ struct BreakingInboxView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack {
-                                        // No tier badge: everything in this panel is high by
-                                        // definition — a HIGH tag on every row says nothing.
                                         Text(a.sourceName).font(Theme.Text.badge).foregroundStyle(Theme.accent)
                                         if let t = a.topics.first {
                                             Text(FeedStore.displayName(t).uppercased())
@@ -61,7 +67,8 @@ struct BreakingInboxView: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        Text(a.publishedAt, format: .relative(presentation: .named))
+                                        // When it notified you (not when published).
+                                        Text(item.sentAt, format: .relative(presentation: .named))
                                             .font(Theme.Text.meta).foregroundStyle(.secondary)
                                     }
                                     Text(a.title)
@@ -81,6 +88,7 @@ struct BreakingInboxView: View {
                 .padding(.horizontal, 16).padding(.bottom, 30)
             }
         }
+        .task { await store.loadInbox() }
         .background(Theme.canvas)
         .preferredColorScheme(store.appearance.scheme)
         #if os(iOS)

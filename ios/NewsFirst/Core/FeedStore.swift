@@ -67,6 +67,7 @@ final class FeedStore {
     private(set) var loadingCustom: Set<String> = []
     private(set) var isRefreshing = false
     private(set) var hasLoadedOnce = false
+    private var retriedInitialLoad = false
 
     var selectedTopic: String = FeedStore.topStories   // first launch lands on Top Stories, never a single topic
     var swipeProgress: CGFloat = 0   // live drag: -1..1 toward prev/next bar item
@@ -485,19 +486,8 @@ final class FeedStore {
         return !hasLoadedOnce && articles.isEmpty
     }
 
-    /// "High Priority" is meant to be a handful, not a wall of red on a busy news day
-    /// (Tom, 2026-07-09: a pane should show ~0-3 high). Cap the High band to the top 3
-    /// ranked items; the overflow drops into Medium as display copies (so tier badge and
-    /// band header stay consistent). Input is already rank-sorted within each tier.
-    static let highBandCap = 3
-    static func cappedBands(_ items: [Article]) -> (high: [Article], medium: [Article], low: [Article]) {
-        let highAll = items.filter { $0.tier == .high }
-        let high = Array(highAll.prefix(highBandCap))
-        let demoted = highAll.dropFirst(highBandCap).map { $0.withTier(.medium) }
-        let medium = demoted + items.filter { $0.tier == .medium }
-        let low = items.filter { $0.tier == .low }
-        return (high, Array(medium), low)
-    }
+    // (Tier selectivity now lives server-side in article_tier — importance-driven High/
+    // Medium — so the old client-side High-band cap was removed. Criteria, not a cap.)
 
     /// Full Coverage sheet: the seed article whose story cluster is open.
     var story: Article? {
@@ -570,10 +560,31 @@ final class FeedStore {
         if let fetched = try? await api.fetchArticle(id: target) { alertLanding = fetched }
     }
 
-    /// The bell inbox: current breaking stories (high tier = notification-grade), one per cluster.
+    /// The bell inbox: current breaking stories (high tier = notification-grade), one per
+    /// cluster. Used by the spoken briefing; the on-screen drawer uses `inbox` below.
     var breakingStories: [Article] {
         collapseDuplicates(articles.filter { $0.tier == .high }
             .sorted { $0.publishedAt > $1.publishedAt })
+    }
+
+    /// Notification drawer: ONLY articles that actually pushed to this user (their alert
+    /// history), fetched from `alert_inbox`. "Clear all" hides everything sent so far via
+    /// a local watermark — the alert rows stay server-side (they power the open funnel).
+    private(set) var inboxItems: [InboxItem] = []
+    var inboxClearedAt: Date {
+        get { Date(timeIntervalSince1970: defaults.double(forKey: "inboxClearedAt")) }
+        set { defaults.set(newValue.timeIntervalSince1970, forKey: "inboxClearedAt") }
+    }
+    /// Visible drawer contents (everything notified since the last "Clear all").
+    var inbox: [InboxItem] { inboxItems.filter { $0.sentAt > inboxClearedAt } }
+    var unreadInboxCount: Int { inbox.count }
+
+    func loadInbox() async {
+        guard let token = await AuthClient.shared.validToken() else { inboxItems = []; return }
+        if let items = try? await api.fetchAlertInbox(token: token) { inboxItems = items }
+    }
+    func clearInbox() {
+        withAnimation(Theme.Motion.card) { inboxClearedAt = .now }
     }
 
     /// Remove a topic from the bar via the chip's ✕ (preset = disable, custom = delete).
@@ -601,6 +612,7 @@ final class FeedStore {
 
     func start() async {
         loadCache()          // synchronous-fast: feed on screen before any network
+        Task { await loadInbox() }   // populate the notification-drawer badge
         await refresh()
     }
 
@@ -731,7 +743,16 @@ final class FeedStore {
                 withAnimation(Theme.Motion.feed) { briefs = fetched }
             }
         } catch {
-            hasLoadedOnce = true   // keep cache on screen; never a blocking error
+            // Have cached articles → keep them on screen (offline-friendly). No cache yet
+            // (a common cold start from a notification tap that beats the network) → don't
+            // strand the user on a blank Top Stories: stay in the loading state and retry
+            // once before falling back to the empty-state message.
+            if !articles.isEmpty || retriedInitialLoad {
+                hasLoadedOnce = true
+            } else {
+                retriedInitialLoad = true
+                Task { try? await Task.sleep(for: .seconds(2)); await refresh() }
+            }
         }
     }
 

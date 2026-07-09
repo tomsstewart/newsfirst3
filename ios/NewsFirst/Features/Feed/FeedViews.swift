@@ -131,11 +131,12 @@ struct ListFeedView: View {
         // own "From the web" section instead of masquerading as Low Priority.
         let ours = items.filter { !$0.isExternal }
         let web = items.filter { $0.isExternal }
-        let (high, medium, low) = FeedStore.cappedBands(ours)
-        var out: [(Article.Tier, [Article], Bool)] = []
-        if !high.isEmpty { out.append((.high, high, false)) }
-        if !medium.isEmpty { out.append((.medium, medium, false)) }
-        if !low.isEmpty { out.append((.low, low, false)) }
+        // Tiers are now genuinely selective server-side (importance-driven: High = a major
+        // story, Medium = significant + corroborated), so no client cap — just group.
+        var out: [(Article.Tier, [Article], Bool)] = [Article.Tier.high, .medium, .low].compactMap { tier in
+            let tierItems = ours.filter { $0.tier == tier }
+            return tierItems.isEmpty ? nil : (tier, tierItems, false)
+        }
         if !web.isEmpty { out.append((.low, web, true)) }
         return out
     }
@@ -344,12 +345,10 @@ struct ImmersiveFeedView: View {
     @State private var lowHidden = false
 
     private var bands: [(tier: Article.Tier, items: [Article])] {
-        let (high, medium, low) = FeedStore.cappedBands(items)
-        var out: [(Article.Tier, [Article])] = []
-        if !high.isEmpty { out.append((.high, high)) }
-        if !medium.isEmpty { out.append((.medium, medium)) }
-        if !low.isEmpty { out.append((.low, low)) }
-        return out
+        [Article.Tier.high, .medium, .low].compactMap { tier in
+            let tierItems = items.filter { $0.tier == tier }
+            return tierItems.isEmpty ? nil : (tier, tierItems)
+        }
     }
 
     var body: some View {

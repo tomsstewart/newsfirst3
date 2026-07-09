@@ -194,7 +194,7 @@ struct RootView: View {
                 Image(systemName: "bell.fill")
                     .foregroundStyle(.secondary)
                     .overlay(alignment: .topTrailing) {
-                        let n = store.breakingStories.count
+                        let n = store.unreadInboxCount
                         if n > 0 {
                             Text("\(n)")
                                 .font(.system(size: 10, weight: .bold))
@@ -354,6 +354,15 @@ struct RootView: View {
         }
         .frame(width: width)
         .transition(.opacity)
+        // Load a custom pane the moment it's on screen — including the neighbour you're
+        // swiping toward. Previously loadCustom only fired at swipe-commit, so swiping to
+        // a custom topic showed an empty column until you let go.
+        .task(id: "\(store.browse.rawValue)|\(item)") {
+            if store.browse == .topics, store.customTopics.contains(item),
+               (store.customResults[item] ?? []).isEmpty, !store.isCustomPending(item) {
+                await store.loadCustom(item)
+            }
+        }
         .id("\(store.mode.rawValue)-\(store.browse.rawValue)-\(store.barItem(offset: offset))")
     }
 

@@ -102,6 +102,25 @@ struct SupabaseAPI {
         return try JSONDecoder.api.decode([Article].self, from: data)
     }
 
+    /// The signed-in user's push history — ONLY articles that actually notified them
+    /// (the `alert_inbox` view). RLS-scoped, so it must carry the user's JWT, not the
+    /// shared anon key.
+    func fetchAlertInbox(token: String, limit: Int = 50) async throws -> [InboxItem] {
+        var comps = URLComponents(url: Self.projectURL.appending(path: "rest/v1/alert_inbox"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [
+            .init(name: "select", value: "alert_id,sent_at,\(Self.fields)"),
+            .init(name: "order", value: "sent_at.desc"),
+            .init(name: "limit", value: String(limit)),
+        ]
+        var req = URLRequest(url: comps.url!)
+        req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 10
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        return try JSONDecoder.api.decode([InboxItem].self, from: data)
+    }
+
     func fetchBriefs() async throws -> [String: String] {
         var comps = URLComponents(url: Self.projectURL.appending(path: "rest/v1/briefs"), resolvingAgainstBaseURL: false)!
         comps.queryItems = [
