@@ -237,10 +237,16 @@ struct RootView: View {
                         pane(offset: 1, width: w)
                     }
                     .offset(x: -w + feedDrag)
-                    // Never animate the -w centering when the layout width first resolves:
-                    // on a cold launch that 0→width settle animated the panes sliding in
-                    // from the right. Swipe drags animate via their own transactions, not w.
-                    .animation(nil, value: w)
+                    // The -w centering must NEVER animate at rest — on a cold launch the
+                    // 0→width settle (and the load transition re-animating this subtree)
+                    // slid the whole feed in from the right (Tom's screen recording).
+                    // .animation(nil, value: w) wasn't enough: the outer
+                    // .animation(value: isLoadingSelected) re-animated the offset in the
+                    // same frame the feed loaded. Strip implicit animation from the offset
+                    // whenever we're at rest (feedDrag == 0: launch, width-resolve, pane
+                    // re-identify); an explicit swipe drives feedDrag non-zero inside
+                    // withAnimation, so real swipes still animate.
+                    .transaction { txn in if feedDrag == 0 { txn.animation = nil } }
                     // A latched horizontal swipe owns the touch: the column must not
                     // keep scrolling vertically underneath the carousel drag.
                     .scrollDisabled(dragAxis == .horizontal)
