@@ -237,16 +237,16 @@ struct RootView: View {
                         pane(offset: 1, width: w)
                     }
                     .offset(x: -w + feedDrag)
-                    // The -w centering must NEVER animate at rest — on a cold launch the
-                    // 0→width settle (and the load transition re-animating this subtree)
-                    // slid the whole feed in from the right (Tom's screen recording).
-                    // .animation(nil, value: w) wasn't enough: the outer
-                    // .animation(value: isLoadingSelected) re-animated the offset in the
-                    // same frame the feed loaded. Strip implicit animation from the offset
-                    // whenever we're at rest (feedDrag == 0: launch, width-resolve, pane
-                    // re-identify); an explicit swipe drives feedDrag non-zero inside
-                    // withAnimation, so real swipes still animate.
-                    .transaction { txn in if feedDrag == 0 { txn.animation = nil } }
+                    // FADE in on first launch, never SLIDE. The carousel had no transition,
+                    // so when it inserted under the active .animation(value: isLoadingSelected)
+                    // SwiftUI animated its LAYOUT — the -w centring interpolated from 0, so
+                    // the whole feed slid in from the right (Tom's screen recording).
+                    // .transition(.opacity) makes insertion animate opacity only, with the
+                    // offset applied at its final -w immediately: a clean fade, no slide.
+                    .transition(.opacity)
+                    // Belt-and-braces for the cache-fast path where isLoadingSelected never
+                    // flips: don't animate the -w centring when the layout width resolves.
+                    .animation(nil, value: w)
                     // A latched horizontal swipe owns the touch: the column must not
                     // keep scrolling vertically underneath the carousel drag.
                     .scrollDisabled(dragAxis == .horizontal)
