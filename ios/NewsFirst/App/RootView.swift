@@ -222,6 +222,7 @@ struct RootView: View {
     @State private var dragAxis: DragAxis?
     @State private var feedDrag: CGFloat = 0
     @State private var commitID = 0   // generation counter: fast-forwarded commits orphan their completion
+    @State private var feedFadedIn = false   // first-launch fade (never slide); latches true, so swipes don't re-fade
 
     @ViewBuilder private var feed: some View {
         GeometryReader { geo in
@@ -229,24 +230,30 @@ struct RootView: View {
             ZStack {
                 if store.isLoadingSelected {
                     FeedSkeleton(mode: store.mode).transition(.opacity)
-                } else {
+                } else if w > 0 {
                     // Live carousel: neighbour columns are mounted and visible during the drag.
+                    // FADE in on first launch, never SLIDE. The slide was the -w centring
+                    // interpolating from 0: on a cold launch the carousel rendered for one
+                    // frame at w==0 (offset 0 → the middle pane sits a full screen-width to
+                    // the right), then w resolved and that 0→-w change animated in from the
+                    // right (Tom's screen recording). Two guards kill it: (1) `w > 0` — never
+                    // render the carousel until the width is known, so the offset is correct
+                    // on its very first frame, no 0→-w change to animate; (2) an explicit
+                    // opacity fade latched on first appear, independent of layout, so we get
+                    // a clean fade-in that can never become a slide. Swipes are unaffected —
+                    // feedFadedIn latches true after launch, so they never re-fade.
                     HStack(spacing: 0) {
                         pane(offset: -1, width: w)
                         pane(offset: 0, width: w)
                         pane(offset: 1, width: w)
                     }
                     .offset(x: -w + feedDrag)
-                    // FADE in on first launch, never SLIDE. The carousel had no transition,
-                    // so when it inserted under the active .animation(value: isLoadingSelected)
-                    // SwiftUI animated its LAYOUT — the -w centring interpolated from 0, so
-                    // the whole feed slid in from the right (Tom's screen recording).
-                    // .transition(.opacity) makes insertion animate opacity only, with the
-                    // offset applied at its final -w immediately: a clean fade, no slide.
-                    .transition(.opacity)
-                    // Belt-and-braces for the cache-fast path where isLoadingSelected never
-                    // flips: don't animate the -w centring when the layout width resolves.
                     .animation(nil, value: w)
+                    .opacity(feedFadedIn ? 1 : 0)
+                    .onAppear {
+                        guard !feedFadedIn else { return }
+                        withAnimation(Theme.Motion.feed) { feedFadedIn = true }
+                    }
                     // A latched horizontal swipe owns the touch: the column must not
                     // keep scrolling vertically underneath the carousel drag.
                     .scrollDisabled(dragAxis == .horizontal)
