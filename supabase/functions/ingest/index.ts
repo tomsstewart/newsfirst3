@@ -477,9 +477,15 @@ async function enrichBackfill(env: Env): Promise<number> {
 async function generateBriefs(env: Env): Promise<number | string> {
   const db = sb(env);
   const today = new Date().toISOString().slice(0, 10);
-  // Idempotent: the 09:20 retry cron (and manual reruns) must not burn quota on a done day.
-  const existing = await db.get<unknown[]>(`briefs?brief_date=eq.${today}&select=topic&limit=1`).catch(() => []);
-  if (existing.length) return "already-done";
+  // Freshness, not once-a-day: the overview card sits above a live feed that turns over
+  // through the day, so a 07:20-only brief describes stories that have rolled off by
+  // afternoon (Tom: "overview doesn't match what's on screen"). Regenerate on the
+  // 07/13/19 crons — but stay quota-safe: skip if today's brief is younger than ~5h, so
+  // the 09:20 retry (and manual reruns) never burn a Gemini call on an already-fresh day.
+  // merge-duplicates on (topic,brief_date) means a same-day rerun UPDATES the row in place.
+  const existing = await db.get<{ created_at: string }[]>(
+    `briefs?brief_date=eq.${today}&select=created_at&order=created_at.desc&limit=1`).catch(() => []);
+  if (existing.length && Date.now() - Date.parse(existing[0].created_at) < 5 * 3600 * 1000) return "fresh";
   const topics = ["world", "business", "economics", "tech", "ai", "science", "sports", "crypto", "gaming", "entertainment", "space", "climate", "health", "travel"];
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const rows = await db.get<{ title: string; topics: string[] }[]>(
