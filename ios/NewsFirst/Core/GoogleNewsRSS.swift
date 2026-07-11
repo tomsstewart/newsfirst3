@@ -39,7 +39,7 @@ enum GoogleNewsRSS {
             out.append(Article(
                 id: id, url: url, title: title, excerpt: nil, imageURL: nil,
                 publishedAt: published, topics: [], regions: nil, sourceName: source,
-                score: 0, tier: .low, clusterID: nil, clusterSources: nil, isExternal: true))
+                score: 0, tier: .low, clusterID: nil, clusterSources: nil, clusterLabel: nil, isExternal: true))
         }
         return out.sorted { $0.publishedAt > $1.publishedAt }
     }
@@ -75,7 +75,7 @@ enum GoogleNewsRSS {
                        imageURL: meta.image, publishedAt: a.publishedAt, topics: a.topics,
                        regions: a.regions, sourceName: a.sourceName, score: a.score,
                        tier: a.tier, clusterID: a.clusterID, clusterSources: a.clusterSources,
-                       isExternal: true)
+                       clusterLabel: a.clusterLabel, isExternal: true)
     }
 
     /// CFNetwork's default UA gets 302'd to the GDPR consent wall (URLSession follows

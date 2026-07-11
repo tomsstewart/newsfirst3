@@ -14,6 +14,7 @@ struct Article: Codable, Identifiable, Hashable {
     let tier: Tier
     let clusterID: UUID?            // story identity — one story told by many sources
     let clusterSources: Int?        // distinct sources in the cluster (≥2 → Full Coverage)
+    let clusterLabel: String?       // dominant subject across the cluster's headlines ("Xbox")
     /// True for rows fetched from outside our corpus (Google News experiment):
     /// their source name isn't in our Sources browse, so it must not be a link.
     /// Not in CodingKeys — server rows decode with the default.
@@ -28,6 +29,7 @@ struct Article: Codable, Identifiable, Hashable {
         case sourceName = "source_name"
         case clusterID = "cluster_id"
         case clusterSources = "cluster_sources"
+        case clusterLabel = "cluster_label"
     }
 
     /// Display copy at a different tier. Used to cap the High band to a handful without
@@ -35,7 +37,8 @@ struct Article: Codable, Identifiable, Hashable {
     func withTier(_ t: Tier) -> Article {
         Article(id: id, url: url, title: title, excerpt: excerpt, imageURL: imageURL,
                 publishedAt: publishedAt, topics: topics, regions: regions, sourceName: sourceName,
-                score: score, tier: t, clusterID: clusterID, clusterSources: clusterSources, isExternal: isExternal)
+                score: score, tier: t, clusterID: clusterID, clusterSources: clusterSources,
+                clusterLabel: clusterLabel, isExternal: isExternal)
     }
 }
 

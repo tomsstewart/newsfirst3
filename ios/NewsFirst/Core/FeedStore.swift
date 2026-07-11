@@ -396,7 +396,7 @@ final class FeedStore {
                        imageURL: a.imageURL, publishedAt: a.publishedAt, topics: a.topics,
                        regions: a.regions, sourceName: a.sourceName, score: a.score,
                        tier: .medium, clusterID: a.clusterID, clusterSources: a.clusterSources,
-                       isExternal: a.isExternal)
+                       clusterLabel: a.clusterLabel, isExternal: a.isExternal)
     }
 
     /// The one preset pane an article belongs to: its first ENABLED topic tag

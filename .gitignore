@@ -12,3 +12,6 @@ ios/build/
 ios/DerivedData/
 *.xcuserstate
 supabase/.temp/
+
+# stray Supabase CLI temp dir
+supabase/supabase/

@@ -731,9 +731,12 @@ struct CoverageChip: View {
             Button {
                 store.story = article
             } label: {
+                // Say WHAT the group is about, not just how many: "5 sources · Xbox".
+                let text = article.clusterLabel.map { compact ? "\(n) sources · \($0)" : "\($0) · \(n) sources" }
+                    ?? (compact ? "\(n) sources" : "Full coverage · \(n)")
                 HStack(spacing: 4) {
                     Image(systemName: "square.stack.3d.up.fill").font(.system(size: 8, weight: .bold))
-                    Text(compact ? "\(n) sources" : "Full coverage · \(n)")
+                    Text(text)
                 }
                 .font(Theme.Text.badge)
                 .padding(.horizontal, 8).padding(.vertical, 3)
