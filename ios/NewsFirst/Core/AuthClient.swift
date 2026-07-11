@@ -187,7 +187,15 @@ final class AuthClient {
     func syncTopics(preset: [String], custom: [String]) async {
         guard let token = await validToken(), let uid = userID else { return }
         // Unified notify levels (presets default off, customs default 'all'/loud).
-        let levels = UserDefaults.standard.dictionary(forKey: "notifyLevels") as? [String: String] ?? [:]
+        var levels = UserDefaults.standard.dictionary(forKey: "notifyLevels") as? [String: String] ?? [:]
+        // Server is the source of truth for anything we DON'T have an explicit local level
+        // for. A reinstall wipes UserDefaults, so without this the first sync would blindly
+        // re-write every custom back to the 'all' default — clobbering a level set on a
+        // previous install (Tom's bitcoin='high' silently reverting to the firehose). Fill
+        // missing keys from the server first; explicit local values still win (user intent).
+        let server = await fetchServerLevels(token: token)
+        for (topic, lvl) in server where levels[topic] == nil { levels[topic] = lvl }
+        UserDefaults.standard.set(levels, forKey: "notifyLevels")
         // Top Stories ("top") is a preset the server matcher special-cases to breaking
         // across all topics. Always sync it so toggling off propagates too.
         let rows = preset.map { ["user_id": uid, "topic": $0, "kind": "preset",
@@ -205,6 +213,22 @@ final class AuthClient {
         req.url = URL(string: req.url!.absoluteString + "?on_conflict=user_id,topic")
         req.httpBody = try? JSONSerialization.data(withJSONObject: rows)
         _ = try? await URLSession.shared.data(for: req)
+    }
+
+    /// The user's current server-side notify levels (topic -> level). Used by syncTopics to
+    /// avoid clobbering levels set on another install when local UserDefaults is empty.
+    private func fetchServerLevels(token: String) async -> [String: String] {
+        var req = URLRequest(url: SupabaseAPI.projectURL.appending(path: "rest/v1/topic_subscriptions"))
+        req.url = URL(string: req.url!.absoluteString + "?select=topic,notify_level")
+        req.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [:] }
+        var out: [String: String] = [:]
+        for r in rows {
+            if let t = r["topic"] as? String, let l = r["notify_level"] as? String { out[t] = l }
+        }
+        return out
     }
 }
 
