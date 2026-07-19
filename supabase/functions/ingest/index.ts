@@ -377,7 +377,7 @@ async function ingestTick(env: Env): Promise<void> {
           `sources?feed_url=eq.${encodeURIComponent(res.finalUrl)}&id=neq.${src.id}&select=id&limit=1`);
         if (owner.length) {
           console.error(`ingest ${src.name}: duplicate of source ${owner[0].id} (redirects to ${res.finalUrl}); disabling`);
-          await db.patch(`sources?id=eq.${src.id}`, { is_enabled: false, health: "duplicate" }).catch(() => {});
+          await db.patch(`sources?id=eq.${src.id}`, { is_enabled: false }).catch(() => {});
         } else {
           await db.patch(`sources?id=eq.${src.id}`, { feed_url: res.finalUrl }).catch(() => {});
         }

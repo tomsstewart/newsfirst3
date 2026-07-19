@@ -2,12 +2,8 @@
 -- NBC News and Live Science moved feeds) redirect onto a URL another source row
 -- already owns. Ingest's persist-permanent-move PATCH then violates
 -- sources_feed_url_key on every 5-min poll — the duplicate-key log spam.
--- Merge each loser into the row that owns the canonical URL; ingest v40 disables
--- any future such duplicate with health='duplicate' instead of retrying forever.
-
-alter table public.sources drop constraint sources_health_check;
-alter table public.sources add constraint sources_health_check
-  check (health = any (array['ok'::text, 'degraded'::text, 'broken'::text, 'duplicate'::text]));
+-- Merge each loser into the row that owns the canonical URL; ingest v42+ disables
+-- any future such duplicate (loudly, in function logs) instead of retrying forever.
 
 -- Repoint articles to the keeper…
 with pairs(loser_url, keeper_url) as (
