@@ -3,8 +3,8 @@
  * Invoked by pg_cron via pg_net: ?task=ingest every 5 min, ?task=watchdog hourly.
  * Tick: pick due sources → conditional GET → parse → dedupe → enrich → score once → insert.
  * Health: exponential backoff + auto-fix ladder; nothing is ever silently disabled (v2's sin).
- * Scoring is write-once; decay/tiers are computed at read time in Postgres — unlike v2,
- * this function issues ZERO article updates.
+ * Scoring is write-once; decay/tiers are computed in Postgres (feed_mat, refreshed by
+ * pg_cron every 5 min since 0039) — unlike v2, this function issues ZERO article updates.
  *
  * Secrets: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are auto-injected by the platform;
  * set GEMINI_API_KEY + APNS_* via `supabase secrets set` or Dashboard → Edge Functions → Secrets.
@@ -317,17 +317,23 @@ async function ingestTick(env: Env): Promise<void> {
   const due = await db.get<Source[]>(
     `sources?is_enabled=eq.true&or=(backoff_until.is.null,backoff_until.lt.${started})` +
     `&select=id,name,feed_url,category,weight,region,etag,last_modified,fail_streak,health,poll_interval_s` +
-    `&order=last_fetch_at.asc.nullsfirst&limit=15`,
+    // RSS + conditional GET is cheap I/O — poll a big batch each 5-min tick and fan out
+    // concurrently. 291 sources ÷ 150/run ⇒ full refresh in ~2 ticks (~10 min), vs ~97 min
+    // when this was a sequential top-15 loop. Images are handled off the hot path (watchdog
+    // OG-rescue + client-side), so the per-source cost here is just fetch+parse+insert.
+    `&order=last_fetch_at.asc.nullsfirst&limit=150`,
   );
 
   let inserted = 0, failed = 0;
-  for (const src of due) {
+  const CONCURRENCY = 25;
+
+  async function processSource(src: Source): Promise<void> {
     const now = new Date().toISOString();
     try {
       const res = await fetchFeed(src);
       if (res.status === 304) {
         await db.patch(`sources?id=eq.${src.id}`, { last_fetch_at: now, last_success_at: now, fail_streak: 0, health: "ok", backoff_until: null, poll_interval_s: Math.min(src.poll_interval_s * 1.5, 21600) | 0 });
-        continue;
+        return;
       }
       if (!res.body) throw new Error(`http ${res.status}`);
 
@@ -345,19 +351,14 @@ async function ingestTick(env: Env): Promise<void> {
           excerpt: p.description?.slice(0, 500) ?? null,
           // image_status on EVERY row: PostgREST bulk insert demands identical keys, and
           // setting it only on OG-rescued rows 400'd whole batches (took Al Jazeera down).
+          // Feed image if present; imageless rows are rescued off the hot path (watchdog /
+          // client-side) so a big concurrent poll stays inside the function's wall-clock.
           image_url: p.image ?? null, image_status: "unchecked", published_at: published, source_id: src.id,
           topics: hintTopics(p.title, src.category), entities: [], regions: src.region ? [src.region] : [],
           base_score: score, score_breakdown: breakdown, lang: null,
         });
       }
       if (candidates.length) {
-        // Bounded OG-image rescue for imageless items (v2 did this unbounded — that burned compute)
-        let ogBudget = 8;
-        for (const c of candidates) {
-          if (!c.image_url && ogBudget > 0) { ogBudget--; c.image_url = await ogImage(c.url); if (c.image_url) c.image_status = "ok"; }
-        }
-        // No inline AI here: Gemini free tier is 20 req/DAY — enrichment runs as the
-        // scheduled enrich_backfill batch (1 call of 100 headlines / 2h) instead.
         const landed = await db.postRows("articles?on_conflict=url_hash&select=id", candidates, "resolution=ignore-duplicates,return=representation");
         inserted += landed.length;   // real inserts only, not the ~95% duplicates
       }
@@ -366,9 +367,21 @@ async function ingestTick(env: Env): Promise<void> {
         etag: res.etag ?? null, last_modified: res.lastModified ?? null,
         ...(candidates.length ? { last_new_item_at: now, poll_interval_s: Math.max(300, (src.poll_interval_s / 2) | 0) } : { poll_interval_s: Math.min((src.poll_interval_s * 1.5) | 0, 21600) }),
       });
-      // Separate + tolerated: a redirect target that equals another source's feed_url
-      // violates the unique constraint; that must never fail the whole (healthy) poll.
-      if (res.finalUrl) await db.patch(`sources?id=eq.${src.id}`, { feed_url: res.finalUrl }).catch(() => {});
+      // Persist permanent moves — but a redirect target that equals another source's
+      // feed_url means TWO rows poll the same feed: the PATCH would violate
+      // sources_feed_url_key on every poll (July's duplicate-key log spam). That row
+      // is a duplicate, not a move: retire it loudly (url_hash dedup already made its
+      // inserts no-ops), instead of retrying the collision forever.
+      if (res.finalUrl) {
+        const owner = await db.get<{ id: string }[]>(
+          `sources?feed_url=eq.${encodeURIComponent(res.finalUrl)}&id=neq.${src.id}&select=id&limit=1`);
+        if (owner.length) {
+          console.error(`ingest ${src.name}: duplicate of source ${owner[0].id} (redirects to ${res.finalUrl}); disabling`);
+          await db.patch(`sources?id=eq.${src.id}`, { is_enabled: false, health: "duplicate" }).catch(() => {});
+        } else {
+          await db.patch(`sources?id=eq.${src.id}`, { feed_url: res.finalUrl }).catch(() => {});
+        }
+      }
     } catch (e) {
       failed++;
       // Name the failure — silent per-source catches hid Al Jazeera being down for a day.
@@ -381,6 +394,11 @@ async function ingestTick(env: Env): Promise<void> {
       }).catch(() => {});
     }
   }
+
+  // Bounded-concurrency worker pool: a shared cursor hands each worker the next source.
+  let cursor = 0;
+  const worker = async () => { while (cursor < due.length) { await processSource(due[cursor++]); } };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, due.length) }, worker));
 
   await db.post("ingest_runs", { started_at: started, finished_at: new Date().toISOString(), sources_polled: due.length, sources_failed: failed, articles_inserted: inserted });
   // TODO(phase 4): alert matcher — new articles × topic_subscriptions (notify_level high/all) → APNs.
