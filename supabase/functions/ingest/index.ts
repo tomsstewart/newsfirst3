@@ -421,6 +421,27 @@ async function healthWatchdog(env: Env): Promise<void> {
   // NULL last_success_at (never-succeeded source, e.g. bad seed URL) must also surface.
   const stale = await db.get<Source[]>(`sources?is_enabled=eq.true&health=neq.broken&or=(last_success_at.lt.${cutoff},last_success_at.is.null)&created_at=lt.${cutoff}&select=id,name`);
   for (const s of stale) await db.patch(`sources?id=eq.${s.id}`, { health: "broken" });
+  // Feed-freshness sentinel (2026-07-20 incident): if the newest article visible via
+  // `feed` lags the newest ingested article by >90 min, the matview refresh is stuck —
+  // page Tom's devices directly instead of letting the app go quietly stale.
+  const newestArticle = await db.get<{ published_at: string }[]>(
+    "articles?select=published_at&order=published_at.desc&limit=1").catch(() => []);
+  const newestFeed = await db.get<{ published_at: string }[]>(
+    "feed?select=published_at&order=published_at.desc&limit=1").catch(() => []);
+  if (newestArticle.length && newestFeed.length) {
+    const lagMin = Math.round((Date.parse(newestArticle[0].published_at) - Date.parse(newestFeed[0].published_at)) / 60000);
+    if (lagMin > 90) {
+      console.error(`watchdog: feed refresh looks stuck — feed lags ingest by ${lagMin} min`);
+      const OWNER = "8a365cc8-7319-47ca-a26d-d3a12e05332d"; // Tom (tshawstewart@gmail.com)
+      const devices = env.APNS_KEY_P8 ? await db.get<{ apns_token: string; environment: string }[]>(
+        `devices?user_id=eq.${OWNER}&is_valid=eq.true&select=apns_token,environment`).catch(() => []) : [];
+      for (const d of devices) {
+        await sendPush(env, { token: d.apns_token, environment: d.environment }, {
+          aps: { alert: { title: "NewsFirst ops", body: `Feed refresh looks stuck: feed lags ingest by ${lagMin} min.` }, sound: "default" },
+        }, "feed-freshness").catch(() => {});
+      }
+    }
+  }
   // TODO(phase 2): re-discovery from homepage <link rel="alternate"> for broken sources.
   // TODO(phase 4): push "source broken: <name>" to the owner through the app's own alert pipeline.
   // TODO(phase 4): digest generation at each user's digest_hour.
