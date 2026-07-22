@@ -226,12 +226,15 @@ const gte = new Supabase.ai.Session("gte-small");
 
 async function embedNewArticles(env: Env, limit = 12): Promise<number> {
   // 12/invocation stays inside the free edge worker's CPU budget (100 hit
-  // WORKER_RESOURCE_LIMIT); its own 5-min cron gives ~3.4k/day capacity vs ~2.5k new articles.
+  // WORKER_RESOURCE_LIMIT); the 2-min cron at n=8 gives ~5.7k/day capacity vs ~2.5k new articles.
   const db = sb(env);
-  const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-  const rows = await db.get<{ id: string; title: string; excerpt: string | null }[]>(
-    `articles?embedding=is.null&published_at=gt.${since}&select=id,title,excerpt&order=published_at.desc&limit=${limit}`,
-  );
+  // Atomic claim (SKIP LOCKED + embed_claimed_at, migration 0049): overlapping
+  // ticks get disjoint batches. A plain GET here had every concurrent worker
+  // racing to PATCH the same newest rows — the tuple-lock pileup that starved
+  // feed_mat refresh for 4h on 2026-07-22.
+  const rows = await db.postRows(
+    "rpc/claim_embed_batch", { n: limit }, "return=representation",
+  ) as { id: string; title: string; excerpt: string | null }[];
   let stored = 0;
   try {
     for (const r of rows) {
