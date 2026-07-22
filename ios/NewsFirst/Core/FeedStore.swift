@@ -258,28 +258,39 @@ final class FeedStore {
     }
 
     /// Called when a preset topic or source shows empty — targeted server fetch fills it.
+    /// Retries a couple of times: the triggering .task only re-fires on selection change,
+    /// so a single flaky request left the pane empty until the user navigated away and
+    /// back (the 2026-07-22 "economics empty until I tap elsewhere" report).
     func backfillIfSparse() async {
-        // Failures/cancellations must stay nil: caching `[]` here made one flaky request
-        // (or a fast swipe-past, which cancels the .task) an empty topic for the session.
+        for attempt in 0..<3 {
+            if await backfillAttempt() || Task.isCancelled { return }
+            if attempt < 2 { try? await Task.sleep(for: .seconds(2)) }   // swipe-past cancels; next selection retries
+        }
+    }
+
+    /// One targeted fetch. True = nothing left to do (filled, already cached, or N/A);
+    /// false = the fetch itself failed and a retry is worthwhile.
+    /// Failures/cancellations must stay nil: caching `[]` here made one flaky request
+    /// (or a fast swipe-past, which cancels the .task) an empty topic for the session.
+    private func backfillAttempt() async -> Bool {
         if browse == .sources {
             let s = selectedSource
-            guard !s.isEmpty, articles.filter({ $0.sourceName == s }).isEmpty, sourceResults[s] == nil else { return }
-            if let fetched = try? await api.fetchSource(s) {
-                withAnimation(Theme.Motion.feed) { sourceResults[s] = fetched }
-                serverOffsets["s:\(s)"] = fetched.count   // Load More pages from here, not row 0
-                if fetched.count < 60 { exhaustedKeys.insert("s:\(s)") }
-            }
+            guard !s.isEmpty, articles.filter({ $0.sourceName == s }).isEmpty, sourceResults[s] == nil else { return true }
+            guard let fetched = try? await api.fetchSource(s) else { return false }
+            withAnimation(Theme.Motion.feed) { sourceResults[s] = fetched }
+            serverOffsets["s:\(s)"] = fetched.count   // Load More pages from here, not row 0
+            if fetched.count < 60 { exhaustedKeys.insert("s:\(s)") }
         } else if !isCustomSelected {
             let t = selectedTopic
-            guard t != Self.topStories else { return }   // the whole feed can't be sparse
+            guard t != Self.topStories else { return true }   // the whole feed can't be sparse
             // Backfill thin topics too, not just empty ones — every section deserves a full page.
-            guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return }
-            if let fetched = try? await api.fetchTopic(t) {
-                withAnimation(Theme.Motion.feed) { topicExtra[t] = fetched }
-                serverOffsets["t:\(t)"] = fetched.count   // Load More pages from here, not row 0
-                if fetched.count < 60 { exhaustedKeys.insert("t:\(t)") }
-            }
+            guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return true }
+            guard let fetched = try? await api.fetchTopic(t) else { return false }
+            withAnimation(Theme.Motion.feed) { topicExtra[t] = fetched }
+            serverOffsets["t:\(t)"] = fetched.count   // Load More pages from here, not row 0
+            if fetched.count < 60 { exhaustedKeys.insert("t:\(t)") }
         }
+        return true
     }
 
     /// Warm the image cache for the current and neighbouring columns so entrances

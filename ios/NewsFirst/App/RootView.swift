@@ -249,6 +249,11 @@ struct RootView: View {
                     }
                     .offset(x: -w + feedDrag)
                     .animation(nil, value: w)
+                    // An empty pane is mostly transparent and transparent areas don't
+                    // hit-test, so a drag starting on one never reached the carousel
+                    // gesture — an empty topic pane trapped the user (swipe dead, only
+                    // chip taps escape). The whole feed area must always be draggable.
+                    .contentShape(Rectangle())
                     .opacity(feedFadedIn ? 1 : 0)
                     .onAppear {
                         guard !feedFadedIn else { return }
