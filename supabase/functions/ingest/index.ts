@@ -348,6 +348,10 @@ async function ingestTick(env: Env): Promise<void> {
         // multiplier at max indefinitely and dodge the retention purge.
         const published = p.pubDate && !isNaN(Date.parse(p.pubDate)) && Date.parse(p.pubDate) < Date.now()
           ? new Date(p.pubDate).toISOString() : now; // never NULL (v2 bug)
+        // Skip stale-dated items: some feeds perpetually re-list years-old posts, and each
+        // retention purge frees their url_hash so they reinsert forever (~700 junk rows
+        // dated 2016–2025 kept resurrecting). 3 days < the 4-day purge horizon (0058).
+        if (Date.parse(published) < Date.now() - 3 * 86_400_000) continue;
         const { score, breakdown } = baseScore(p.title, src.weight);
         candidates.push({
           url, url_hash: await sha256(url), title: p.title.slice(0, 300),
