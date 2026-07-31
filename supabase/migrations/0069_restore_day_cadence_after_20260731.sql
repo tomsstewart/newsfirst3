@@ -4,7 +4,8 @@
 -- 2026-08-01 (one-shot vacuums are daily entries) — earlier is better.
 -- Restores the 0057 day cadence exactly, plus the 0062 maintenance ticks.
 
--- 1) reactivate the deep-shed pauses (0068)
+-- 1) reactivate the deep-shed pauses (0068 + 0068b)
+select cron.alter_job(25, active := true);
 select cron.alter_job(13, active := true);
 select cron.alter_job(9,  active := true);
 select cron.alter_job(20, active := true);
