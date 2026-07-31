@@ -449,6 +449,27 @@ async function healthWatchdog(env: Env): Promise<void> {
       }
     }
   }
+  // Maintenance sentinel (2026-07-31 incident): the nightly purge/prune monolith failed
+  // five nights straight ("job startup timeout") with no page — bloat compounded to 53k
+  // rows past retention, which re-bankrupted the disk-IO budget and starved the whole box.
+  // Maintenance is batched ticks now (migration 0062); this pages when retention still
+  // falls >15k rows behind (≈ purge dead for ~a day), so a dead tick is a same-day fix.
+  // The offset trick avoids a count(*) over the heap: a row existing at offset 15000 of
+  // the published_at index means >15k overdue rows.
+  const horizon = new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString();
+  const overdue = await db.get<{ id: string }[]>(
+    `articles?published_at=lt.${horizon}&select=id&order=published_at.asc&limit=1&offset=15000`).catch(() => []);
+  if (overdue.length) {
+    console.error("watchdog: retention purge falling behind — >15k rows past the 4-day horizon");
+    const OWNER = "8a365cc8-7319-47ca-a26d-d3a12e05332d"; // Tom (tshawstewart@gmail.com)
+    const devices = env.APNS_KEY_P8 ? await db.get<{ apns_token: string; environment: string }[]>(
+      `devices?user_id=eq.${OWNER}&is_valid=eq.true&select=apns_token,environment`).catch(() => []) : [];
+    for (const d of devices) {
+      await sendPush(env, { token: d.apns_token, environment: d.environment }, {
+        aps: { alert: { title: "NewsFirst ops", body: "Retention purge is falling behind (>15k rows past the 4-day horizon). Check purge_tick before the disk-IO budget drains." }, sound: "default" },
+      }, "maintenance-health").catch(() => {});
+    }
+  }
   // TODO(phase 2): re-discovery from homepage <link rel="alternate"> for broken sources.
   // TODO(phase 4): push "source broken: <name>" to the owner through the app's own alert pipeline.
   // TODO(phase 4): digest generation at each user's digest_hour.
