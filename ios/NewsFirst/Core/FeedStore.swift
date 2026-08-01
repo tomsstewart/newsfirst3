@@ -283,8 +283,11 @@ final class FeedStore {
         } else if !isCustomSelected {
             let t = selectedTopic
             guard t != Self.topStories else { return true }   // the whole feed can't be sparse
-            // Backfill thin topics too, not just empty ones — every section deserves a full page.
-            guard articles.filter({ $0.topics.contains(t) }).count < 8, topicExtra[t] == nil else { return true }
+            // Backfill thin topics too, not just empty ones — every section deserves a
+            // full page. Count what the pane will actually RENDER (primary-topic matches),
+            // not raw tag hits: Economics had 90+ tagged rows but rendered none, so this
+            // guard never fired and the pane stayed empty (2026-08-01).
+            guard articles.filter({ primaryTopic(of: $0) == t }).count < 8, topicExtra[t] == nil else { return true }
             guard let fetched = try? await api.fetchTopic(t) else { return false }
             withAnimation(Theme.Motion.feed) { topicExtra[t] = fetched }
             serverOffsets["t:\(t)"] = fetched.count   // Load More pages from here, not row 0
@@ -444,10 +447,15 @@ final class FeedStore {
         } else {
             // Cross-pane dedup (presets only; customs keep every match): an article
             // tagged [tech, ai] shows ONLY in its primary enabled topic, so adjacent
-            // panes stop repeating each other.
-            let local = articles.filter { primaryTopic(of: $0) == topic }
-            base = local.isEmpty ? (topicExtra[topic] ?? []).filter { primaryTopic(of: $0) == topic }
-                 : local + (topicExtra[topic] ?? []).filter { e in primaryTopic(of: e) == topic && !local.contains(where: { $0.id == e.id }) }
+            // panes stop repeating each other. BUT dedup must not starve a pane:
+            // ingest tags the source's own category first, so Economics stories from
+            // business sources are secondary-tagged — the strict filter rendered an
+            // EMPTY pane while the feed held 90+ tagged articles. Thin panes (<8)
+            // fill back up with secondary-tag matches; plentiful panes keep the dedup.
+            let pool = articles + (topicExtra[topic] ?? []).filter { e in !articles.contains(where: { $0.id == e.id }) }
+            let primary = pool.filter { primaryTopic(of: $0) == topic }
+            base = primary.count >= 8 ? primary
+                 : primary + pool.filter { e in e.topics.contains(topic) && primaryTopic(of: e) != topic }
         }
         // Cross-surface dedup (Tom, 2026-07-10): the big breaking (High) stories are the
         // FRONT PAGE — they live on Top Stories. A preset topic column shows that topic's
@@ -615,6 +623,10 @@ final class FeedStore {
                 enabledTopics.removeAll { $0 == topic }
             }
         }
+        // The removal must reach the server too: an orphaned topic_subscriptions row
+        // keeps alerting FOREVER (a deleted bitcoin chip at 'all' would still fire
+        // ~20 pushes/day). Deletes ONLY this topic's row — nothing reconciliatory.
+        Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics, removing: topic) }
     }
 
     /// Chip drag-reorder over ONE unified order — customs and presets mix freely;
@@ -631,6 +643,11 @@ final class FeedStore {
     func start() async {
         loadCache()          // synchronous-fast: feed on screen before any network
         Task { await loadInbox() }   // populate the notification-drawer badge
+        // Re-push notify levels every launch. Bell syncs are fire-and-forget, so one
+        // dropped write (offline, expired session, server outage) otherwise drifts
+        // silently for weeks — the app showed 'all' while the server said 'high' for
+        // most of July. Launch sync heals any drift within seconds of opening the app.
+        Task { await AuthClient.shared.syncTopics(preset: enabledTopics, custom: customTopics) }
         await refresh()
     }
 

@@ -599,7 +599,8 @@ struct TopicHeaderRow: View {
                         .foregroundStyle(level == .all ? AnyShapeStyle(Theme.accent)
                                        : level == .high ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                         .padding(8)
-                        .overlay(Circle().strokeBorder(Theme.panelBorder, lineWidth: 1))
+                        // 'all' wears the accent on the ring too, not just the glyph (Tom, 2026-08-01).
+                        .overlay(Circle().strokeBorder(level == .all ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.panelBorder), lineWidth: 1))
                         .accessibilityLabel(level == .all ? "Alerts: every match"
                                           : level == .high ? (isTop ? "Alerts: breaking news" : "Alerts: breaking only")
                                           : "Alerts off")

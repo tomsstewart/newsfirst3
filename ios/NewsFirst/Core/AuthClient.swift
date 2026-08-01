@@ -184,7 +184,7 @@ final class AuthClient {
     /// Push local topic prefs to topic_subscriptions (RLS: user's own rows).
     /// notify_level: bell-toggled presets get 'high' (breaking only — high IS the push
     /// tier since 0021), customs get 'all' (radar semantics: any match is the product).
-    func syncTopics(preset: [String], custom: [String]) async {
+    func syncTopics(preset: [String], custom: [String], removing: String? = nil) async {
         guard let token = await validToken(), let uid = userID else { return }
         // Unified notify levels (presets default off, customs default 'all'/loud).
         var levels = UserDefaults.standard.dictionary(forKey: "notifyLevels") as? [String: String] ?? [:]
@@ -213,6 +213,23 @@ final class AuthClient {
         req.url = URL(string: req.url!.absoluteString + "?on_conflict=user_id,topic")
         req.httpBody = try? JSONSerialization.data(withJSONObject: rows)
         _ = try? await URLSession.shared.data(for: req)
+        // Removing a topic must reach the server or its row keeps alerting forever
+        // (a deleted bitcoin chip at 'all' would still fire ~20 pushes/day — the July
+        // drift). ONLY the explicitly removed topic is deleted, passed in from the
+        // user's removal tap: a set-difference prune ("delete whatever isn't on the
+        // bar") destroys real subscriptions the moment a signed-in device has partial
+        // local state — a fresh reinstall's default bar would silently wipe every
+        // custom topic server-side.
+        if let removing {
+            var comps = URLComponents(url: SupabaseAPI.projectURL.appending(path: "rest/v1/topic_subscriptions"), resolvingAgainstBaseURL: false)!
+            comps.queryItems = [URLQueryItem(name: "user_id", value: "eq.\(uid)"),
+                                URLQueryItem(name: "topic", value: "eq.\(removing)")]
+            var del = URLRequest(url: comps.url!)
+            del.httpMethod = "DELETE"
+            del.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+            del.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            _ = try? await URLSession.shared.data(for: del)
+        }
     }
 
     /// The user's current server-side notify levels (topic -> level). Used by syncTopics to
