@@ -350,7 +350,7 @@ async function ingestTick(env: Env): Promise<void> {
           ? new Date(p.pubDate).toISOString() : now; // never NULL (v2 bug)
         // Skip stale-dated items: some feeds perpetually re-list years-old posts, and each
         // retention purge frees their url_hash so they reinsert forever (~700 junk rows
-        // dated 2016–2025 kept resurrecting). 3 days < the 4-day purge horizon (0058).
+        // dated 2016–2025 kept resurrecting). 3 days < the 84-hour purge horizon (0070).
         if (Date.parse(published) < Date.now() - 3 * 86_400_000) continue;
         const { score, breakdown } = baseScore(p.title, src.weight);
         candidates.push({
@@ -456,11 +456,11 @@ async function healthWatchdog(env: Env): Promise<void> {
   // falls >15k rows behind (≈ purge dead for ~a day), so a dead tick is a same-day fix.
   // The offset trick avoids a count(*) over the heap: a row existing at offset 15000 of
   // the published_at index means >15k overdue rows.
-  const horizon = new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString();
+  const horizon = new Date(Date.now() - 84 * 3600 * 1000).toISOString();
   const overdue = await db.get<{ id: string }[]>(
     `articles?published_at=lt.${horizon}&select=id&order=published_at.asc&limit=1&offset=15000`).catch(() => []);
   if (overdue.length) {
-    console.error("watchdog: retention purge falling behind — >15k rows past the 4-day horizon");
+    console.error("watchdog: retention purge falling behind — >15k rows past the 84-hour horizon");
     const OWNER = "8a365cc8-7319-47ca-a26d-d3a12e05332d"; // Tom (tshawstewart@gmail.com)
     const devices = env.APNS_KEY_P8 ? await db.get<{ apns_token: string; environment: string }[]>(
       `devices?user_id=eq.${OWNER}&is_valid=eq.true&select=apns_token,environment`).catch(() => []) : [];
@@ -468,6 +468,21 @@ async function healthWatchdog(env: Env): Promise<void> {
       await sendPush(env, { token: d.apns_token, environment: d.environment }, {
         aps: { alert: { title: "NewsFirst ops", body: "Retention purge is falling behind (>15k rows past the 4-day horizon). Check purge_tick before the disk-IO budget drains." }, sound: "default" },
       }, "maintenance-health").catch(() => {});
+    }
+  }
+  // Size sentinel (2026-08-01, Tom: "never over the cap again"): index/toast regrowth
+  // is gradual, so paging at 460MB leaves days to run a quiet-slot compaction —
+  // Supabase's own email only arrives after the 500MB cap is already blown.
+  const sizeMb = Number(await db.postRows("rpc/db_size_mb", {}, "return=representation").catch(() => 0));
+  if (sizeMb > 460) {
+    console.error(`watchdog: db size ${sizeMb}MB approaching the 500MB free-tier cap`);
+    const OWNER = "8a365cc8-7319-47ca-a26d-d3a12e05332d"; // Tom (tshawstewart@gmail.com)
+    const devices = env.APNS_KEY_P8 ? await db.get<{ apns_token: string; environment: string }[]>(
+      `devices?user_id=eq.${OWNER}&is_valid=eq.true&select=apns_token,environment`).catch(() => []) : [];
+    for (const d of devices) {
+      await sendPush(env, { token: d.apns_token, environment: d.environment }, {
+        aps: { alert: { title: "NewsFirst ops", body: `DB size ${sizeMb}MB is approaching the 500MB cap — run a quiet-slot compaction.` }, sound: "default" },
+      }, "db-size").catch(() => {});
     }
   }
   // TODO(phase 2): re-discovery from homepage <link rel="alternate"> for broken sources.
