@@ -212,7 +212,20 @@ final class AuthClient {
         req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
         req.url = URL(string: req.url!.absoluteString + "?on_conflict=user_id,topic")
         req.httpBody = try? JSONSerialization.data(withJSONObject: rows)
-        _ = try? await URLSession.shared.data(for: req)
+        // A failed sync must be loud in telemetry: discarding the response here let
+        // every 400 vanish for two days (server rejected the batch, app kept showing
+        // the bells as saved) — the 2026-08 bitcoin/tether drift.
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if !(200..<300).contains(status) {
+                Analytics.capture("topic_sync_failed", [
+                    "status": status,
+                    "detail": String((Self.supabaseError(data) ?? "").prefix(200))])
+            }
+        } catch {
+            Analytics.capture("topic_sync_failed", ["status": 0, "detail": error.localizedDescription])
+        }
         // Removing a topic must reach the server or its row keeps alerting forever
         // (a deleted bitcoin chip at 'all' would still fire ~20 pushes/day — the July
         // drift). ONLY the explicitly removed topic is deleted, passed in from the
@@ -228,7 +241,42 @@ final class AuthClient {
             del.httpMethod = "DELETE"
             del.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
             del.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            _ = try? await URLSession.shared.data(for: del)
+            do {
+                let (data, resp) = try await URLSession.shared.data(for: del)
+                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                if !(200..<300).contains(status) {
+                    Analytics.capture("topic_unsub_failed", [
+                        "status": status, "topic": removing,
+                        "detail": String((Self.supabaseError(data) ?? "").prefix(200))])
+                }
+            } catch {
+                Analytics.capture("topic_unsub_failed", [
+                    "status": 0, "topic": removing, "detail": error.localizedDescription])
+            }
+        }
+    }
+
+    /// Mirror the client entitlement into profiles.plan so server-side plan logic
+    /// sees the same tier the app enforces. The two drifted apart in 2026-08: the
+    /// client comped the founder while the server defaulted him to 'free' and its
+    /// (since removed) sync-time cap wedged topic sync entirely. Upgrade-only —
+    /// the client never writes 'free', so a comp or plan granted server-side can't
+    /// be clobbered by a device that hasn't learned about it yet.
+    func syncPlan(premium: Bool) async {
+        guard premium, let token = await validToken(), let uid = userID else { return }
+        var req = URLRequest(url: SupabaseAPI.projectURL.appending(path: "rest/v1/profiles"))
+        req.httpMethod = "POST"
+        req.url = URL(string: req.url!.absoluteString + "?on_conflict=id")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(SupabaseAPI.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [["id": uid, "plan": "pro"]])
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let status = (resp as? HTTPURLResponse)?.statusCode, !(200..<300).contains(status) {
+            Analytics.capture("plan_sync_failed", [
+                "status": status,
+                "detail": String((Self.supabaseError(data) ?? "").prefix(200))])
         }
     }
 

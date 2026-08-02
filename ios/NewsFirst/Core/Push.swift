@@ -94,6 +94,9 @@ final class PushManager: NSObject {
         Task { await AuthClient.shared.syncTopics(
             preset: defaults.stringArray(forKey: "enabledTopics") ?? [],
             custom: defaults.stringArray(forKey: "customTopics") ?? []) }
+        if Entitlements.shared.isPremium {
+            Task { await AuthClient.shared.syncPlan(premium: true) }
+        }
     }
 
     private func upsertDevice(_ token: String) async {

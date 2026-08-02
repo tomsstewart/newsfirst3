@@ -35,6 +35,7 @@ final class Entitlements {
                 purchased = true
             }
         }
+        if isPremium { await AuthClient.shared.syncPlan(premium: true) }
     }
 
     /// True on success. A missing product (not yet configured in ASC) returns false.
@@ -45,6 +46,7 @@ final class Entitlements {
         if case .success(let verification) = result, case .verified(let t) = verification {
             await t.finish()
             purchased = true
+            Task { await AuthClient.shared.syncPlan(premium: true) }
             return true
         }
         return false
