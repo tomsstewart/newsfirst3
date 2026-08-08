@@ -160,7 +160,7 @@ final class FeedStore {
         showPriorityDebug = defaults.bool(forKey: "priorityDebug")
         // Hybrid is the default for everyone — including migrations from the old
         // Bool toggle (hybrid supersedes what that toggle was reaching for).
-        customEngine = defaults.string(forKey: "customEngine").flatMap(CustomEngine.init) ?? .hybrid
+        customEngine = defaults.string(forKey: "customEngine").flatMap(CustomEngine.init) ?? .corpus
         readerMode = defaults.object(forKey: "readerMode") as? Bool ?? false   // opt-in: reader swallowed consent screens
         defaultMode = ViewMode(rawValue: defaults.string(forKey: "defaultMode") ?? "") ?? .list
         // Unified per-topic notify level (presets, customs, and Top Stories alike).
